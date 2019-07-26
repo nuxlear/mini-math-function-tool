@@ -1,0 +1,23 @@
+ADD +
+SUB -
+MUL *
+DIV /
+MOD %
+
+POW ^
+
+LPAR (
+RPAR )
+UNDER _
+
+SIN sin
+COS cos
+TAN tan
+ASIN asin
+ACOS acos
+ATAN atan
+
+LOG log
+
+VAR [A-Za-z]+
+NUM (0-9)|(1-9)(0-9)*.(0-9)*
