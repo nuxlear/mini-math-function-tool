@@ -2,6 +2,7 @@ import itertools
 from collections import OrderedDict
 
 from mathlib.io.lexer import Lexer, TokenStream
+from mathlib.core.node import Node
 
 
 class Parser:
@@ -179,38 +180,55 @@ class Parser:
         return a
 
     def parse(self, stream: TokenStream):
-        stack = ['$', 'expr']
+        stack = [('$', None), ('expr', None)]
+        root = None
+        cur = None
 
         while True:
             if not stream.is_end():
                 token, terminal = stream.current()
 
-                if self.is_terminal(stack[-1]):
-                    if stack[-1] == terminal:
+                if self.is_terminal(stack[-1][0]):
+                    if stack[-1][0] == terminal:
                         print('consuming {}'.format(token))
-                        stack.pop()
+
+                        t, parent = stack.pop()
+                        n = Node(token, t, parent)
+                        parent.add_child(n)
                         stream.next()
                     else:
                         raise ValueError('token and grammar rule doesn\'t match: {} with {}'.format(terminal, gram))
 
                 else:
-                    key = (stack[-1], terminal)
+                    key = (stack[-1][0], terminal)
 
                     if key in self.table:
                         gram = self.table[key]
                     else:
                         raise ValueError('Parse Error: expected `{}` in next token.'.format(', '.join(self.first[stack[-1]])))
 
-                    stack.pop()
+                    t, parent = stack.pop()
+                    n = Node(None, t, parent)
+                    if parent is None:
+                        root = n
+                    else:
+                        parent.add_child(n)
+                    cur = n
+
                     if gram != ['@']:
-                        stack.extend(gram[::-1])
+                        stack.extend([(t, cur) for t in gram[::-1]])
+                        # stack.extend(gram[::-1])
             else:
-                if stack[-1] == '$':
+                if stack[-1][0] == '$':
                     break
-                if self.is_nullable(stack[-1]):
-                    stack.pop()
+                if self.is_nullable(stack[-1][0]):
+                    t, parent = stack.pop()
+                    n = Node(None, t, parent)
+                    parent.add_child(n)
                 else:
                     raise ValueError('Parse Error: un-consumed token: {}'.format(stack[-1]))
+
+        return root
 
 
 if __name__ == '__main__':
@@ -226,5 +244,7 @@ if __name__ == '__main__':
     for k, v in s.table.items():
         print('{} = {}'.format(k, v))
 
-    s.parse(l.stream('3*sin(x^2)'))
+    # tree = s.parse(l.stream('3*sin(x^2)'))
+    tree = s.parse(l.stream('3*sin(x) + 4*cos(x) * 5^2'))
+    print(tree)
 
