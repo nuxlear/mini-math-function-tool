@@ -1,34 +1,41 @@
 expr -> term term_tail
 
 term_tail -> add_op term term_tail
-          | @
+           | @
 add_op -> ADD | SUB
 
 term -> factor factor_tail
 
 factor_tail -> mul_op factor factor_tail
-            | @
+             | @
 mul_op -> MUL | DIV | MOD
 
-factor -> LPAR expr RPAR
-       | function
-       | var
-       | num
+factor -> expo expo_tail
+
+expo_tail -> POW expo expo_tail
+           | @
+
+expo -> LPAR expr RPAR
+      | function
+      | var
+      | num
 
 function -> triangular
-         | exponent
-         | logarithm
+#          | exponent
+          | logarithm
 
 funbody -> LPAR expr RPAR
+         | var
+         | num
 
 triangular -> tri_func funbody
 
 tri_func -> SIN | COS | TAN
 
-exponent -> var expo_tail
-
-expo_tail -> POW funbody
-          | @
+#exponent -> var expo_tail
+#
+#expo_tail -> POW funbody
+#           | @
 
 logarithm -> LOG expr UNDER funbody
 

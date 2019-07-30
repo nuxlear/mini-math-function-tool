@@ -1,7 +1,7 @@
 import itertools
 from collections import OrderedDict
 
-from mathlib.io.lexer import Lexer
+from mathlib.io.lexer import Lexer, TokenStream
 
 
 class Parser:
@@ -178,8 +178,39 @@ class Parser:
             return u
         return a
 
-    def parse(self, string):
-        pass
+    def parse(self, stream: TokenStream):
+        stack = ['$', 'expr']
+
+        while True:
+            if not stream.is_end():
+                token, terminal = stream.current()
+
+                if self.is_terminal(stack[-1]):
+                    if stack[-1] == terminal:
+                        print('consuming {}'.format(token))
+                        stack.pop()
+                        stream.next()
+                    else:
+                        raise ValueError('token and grammar rule doesn\'t match: {} with {}'.format(terminal, gram))
+
+                else:
+                    key = (stack[-1], terminal)
+
+                    if key in self.table:
+                        gram = self.table[key]
+                    else:
+                        raise ValueError('Parse Error: expected `{}` in next token.'.format(', '.join(self.first[stack[-1]])))
+
+                    stack.pop()
+                    if gram != ['@']:
+                        stack.extend(gram[::-1])
+            else:
+                if stack[-1] == '$':
+                    break
+                if self.is_nullable(stack[-1]):
+                    stack.pop()
+                else:
+                    raise ValueError('Parse Error: un-consumed token: {}'.format(stack[-1]))
 
 
 if __name__ == '__main__':
@@ -194,3 +225,6 @@ if __name__ == '__main__':
     print('\n\t===== TABLE =====')
     for k, v in s.table.items():
         print('{} = {}'.format(k, v))
+
+    s.parse(l.stream('3*sin(x^2)'))
+
