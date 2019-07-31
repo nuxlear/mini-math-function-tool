@@ -1,6 +1,6 @@
 
 
-class Node:
+class ParseNode:
 
     def __init__(self, value, type, parent):
         self.value = value

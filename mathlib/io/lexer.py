@@ -109,7 +109,9 @@ if __name__ == '__main__':
     l = Lexer('lexer_grammar')
     s = l.tokens
     # print(s)
-    t = l.tokenize('3sinx + 4cosx * 5^2')
+    # t = l.tokenize('3sinx + 4cosx * 5^2')
+    # t = l.tokenize('x^3-2*x^2+4/7*x-10')
+    t = l.tokenize('(-1)*3-(-5)')
     print(t)
 
     s = l.stream(t)

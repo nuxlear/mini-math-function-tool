@@ -15,13 +15,17 @@ factor -> expo expo_tail
 expo_tail -> POW expo expo_tail
            | @
 
-expo -> LPAR expr RPAR
+expo -> prefix body
+
+prefix -> SUB
+        | @
+
+body -> LPAR expr RPAR
       | function
       | var
       | num
 
 function -> triangular
-#          | exponent
           | logarithm
 
 funbody -> LPAR expr RPAR
@@ -31,11 +35,6 @@ funbody -> LPAR expr RPAR
 triangular -> tri_func funbody
 
 tri_func -> SIN | COS | TAN
-
-#exponent -> var expo_tail
-#
-#expo_tail -> POW funbody
-#           | @
 
 logarithm -> LOG expr UNDER funbody
 

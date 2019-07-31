@@ -2,7 +2,7 @@ import itertools
 from collections import OrderedDict
 
 from mathlib.io.lexer import Lexer, TokenStream
-from mathlib.core.node import Node
+from mathlib.core.node import ParseNode
 
 
 class Parser:
@@ -103,7 +103,7 @@ class Parser:
             first = self.get_first(key[0])
             if '@' not in first:
                 return first
-            return self.get_first(key[1:])
+            return first.union(self.get_first(key[1:]))
 
         assert isinstance(key, str)
 
@@ -193,7 +193,7 @@ class Parser:
                         print('consuming {}'.format(token))
 
                         t, parent = stack.pop()
-                        n = Node(token, t, parent)
+                        n = ParseNode(token, t, parent)
                         parent.add_child(n)
                         stream.next()
                     else:
@@ -208,7 +208,7 @@ class Parser:
                         raise ValueError('Parse Error: expected `{}` in next token.'.format(', '.join(self.first[stack[-1]])))
 
                     t, parent = stack.pop()
-                    n = Node(None, t, parent)
+                    n = ParseNode(None, t, parent)
                     if parent is None:
                         root = n
                     else:
@@ -223,7 +223,7 @@ class Parser:
                     break
                 if self.is_nullable(stack[-1][0]):
                     t, parent = stack.pop()
-                    n = Node(None, t, parent)
+                    n = ParseNode(None, t, parent)
                     parent.add_child(n)
                 else:
                     raise ValueError('Parse Error: un-consumed token: {}'.format(stack[-1]))
@@ -244,7 +244,9 @@ if __name__ == '__main__':
     for k, v in s.table.items():
         print('{} = {}'.format(k, v))
 
-    # tree = s.parse(l.stream('3*sin(x^2)'))
-    tree = s.parse(l.stream('3*sin(x) + 4*cos(x) * 5^2'))
+    # tree = s.parse(l.stream('3*sinx^2'))
+    # tree = s.parse(l.stream('3*sinx + 4*cosx * 5^2'))
+    # tree = s.parse(l.stream('x^3-2*x^2+4/7*x-10'))
+    tree = s.parse(l.stream('-1 * 3 - -5'))
     print(tree)
 
