@@ -1,5 +1,6 @@
 import abc
 import math
+import operator
 
 
 class ParseNode:
@@ -47,8 +48,14 @@ class NumNode(MathNode):
     def __init__(self, value):
         self.value = value
 
+    def similar(self, num):
+        return isinstance(num, NumNode)
+
     def eval(self, **kwargs):
         return self.value
+
+    def __str__(self):
+        return str(self.value)
 
 
 class TermNode(MathNode):
@@ -74,12 +81,49 @@ class TermNode(MathNode):
             ans = op(ans, factor.eval(**kwargs))
         return ans
 
+    def add_term(self, op, factor):
+        self.ops.append(op)
+        self.factors.append(factor)
+
+    def __str__(self):
+        op_str = {operator.add: '+', operator.sub: '-'}
+        s = ''
+        for op, factor in zip(self.ops, self.factors):
+            s += '{}({})'.format(op_str[op], str(factor))
+        return s
+
 
 class FactorNode(MathNode):
 
     # TODO: fill this class for (exprs)/(exprs) notation
-    def __init__(self, ):
-        pass
+    def __init__(self, numerator: list, denominator: list):
+        super(FactorNode, self).__init__()
+        self.numerator = numerator
+        self.denominator = denominator
+
+    def similar(self, factor):
+        if not isinstance(factor, FactorNode) \
+                or len(self.denominator) != len(factor.denominator):
+            return False
+        ans = True
+        for x, y in zip(self.denominator, factor.denominator):
+            ans = ans and x.similar(y)
+        return ans
+
+    def eval(self, **kwargs):
+        numerator, denominator = 1, 1
+        for x in self.numerator:
+            numerator *= x.eval(**kwargs)
+        for x in self.denominator:
+            denominator *= x.eval(**kwargs)
+        return numerator / denominator
+
+    def __str__(self):
+        nu = ' * '.join(map(str, self.numerator))
+        if len(self.denominator) > 0:
+            deno = ' * '.join(map(str, self.denominator))
+            return '({})/({})'.format(nu, deno)
+        return nu
 
 
 class BodyNode(MathNode, metaclass=abc.ABCMeta):
@@ -104,7 +148,7 @@ class BodyNode(MathNode, metaclass=abc.ABCMeta):
 
 class PolyNode(BodyNode):
 
-    def __init__(self, body, coef=1, dim=1):
+    def __init__(self, body, dim=1, coef=1):
         super(PolyNode, self).__init__(body, coef)
         self.dim = dim
 
@@ -115,6 +159,14 @@ class PolyNode(BodyNode):
 
     def eval(self, **kwargs):
         return self.coef * (self.body.eval(**kwargs) ** self.dim)
+
+    def __str__(self):
+        s = '({})^{}'.format(self.body, self.dim)
+        if self.coef == -1:
+            return '-{}'.format(s)
+        elif self.coef != 1:
+            return '{}*{}'.format(self.coef, s)
+        return s
 
 
 class ExpoNode(BodyNode):
@@ -131,11 +183,19 @@ class ExpoNode(BodyNode):
     def eval(self, **kwargs):
         return self.coef * (self.base ** self.body.eval(**kwargs))
 
+    def __str__(self):
+        s = '({})^{}'.format(self.base, self.body)
+        if self.coef == -1:
+            return '-{}'.format(s)
+        elif self.coef != 1:
+            return '{}*{}'.format(self.coef, s)
+        return s
+
 
 class LogNode(BodyNode):
 
     def __init__(self, base, body, coef=1):
-        if base.eval() <= 0 or base.eval() == 1:
+        if isinstance(base, NumNode) and (base.eval() <= 0 or base.eval() == 1):
             raise ValueError('Invalid base for logarithm: {}'.format(base))
 
         super(LogNode, self).__init__(body, coef)
@@ -148,6 +208,14 @@ class LogNode(BodyNode):
 
     def eval(self, **kwargs):
         return self.coef * math.log(self.body.eval(**kwargs), self.base)
+
+    def __str__(self):
+        s = 'log{}_{}'.format(self.base, self.body)
+        if self.coef == -1:
+            return '-{}'.format(s)
+        elif self.coef != 1:
+            return '{}*{}'.format(self.coef, s)
+        return s
 
 
 class TriNode(BodyNode):
@@ -164,6 +232,15 @@ class TriNode(BodyNode):
     def eval(self, **kwargs):
         return self.coef * self.func(self.body.eval(**kwargs))
 
+    def __str__(self):
+        func_str = {math.sin: 'sin', math.cos: 'cos', math.tan: 'tan'}
+        s = '{}{}'.format(func_str[self.func], self.body)
+        if self.coef == -1:
+            return '-{}'.format(s)
+        elif self.coef != 1:
+            return '{}*{}'.format(self.coef, s)
+        return s
+
 
 class VarNode(BodyNode):
 
@@ -179,30 +256,32 @@ class VarNode(BodyNode):
         assert self.body in kwargs, 'undefined variable: {}'.format(self.body)
         return kwargs[self.body]
 
+    def __str__(self):
+        return str(self.body)
+
 
 class NodeBuilder:
 
     def __init__(self):
         self.math_tree = None
 
-    def build(self, parse_tree):
-        # self.math_tree = self._traverse(parse_tree)
-        pass
+    def build(self, parse_tree: ParseNode):
+        self.math_tree = self._canonicalize(self._traverse(parse_tree))
+        return self.math_tree
 
-    def _canonicalize(self, tree):
-        pass
+    def _canonicalize(self, tree: MathNode):
+
+        return tree
 
     def _traverse(self, node: ParseNode) -> MathNode:
 
         if node.type in ['expr', 'term', 'factor']:
-            # TODO: chaining all -tails with TermNode / FactorNode / ExpoNode
-            pass
+            return self._flatten(node)
         if node.type == 'expo':
             prefix, body = node.childs
             n = self._traverse(body)
-            # TODO: need to apply prefix (minus) or coefficient
             if len(prefix.childs) > 0:
-                pass
+                self._negate(n)
             return n
         if node.type in ['body', 'function', 'funbody']:
             if len(node.childs) > 1:
@@ -215,11 +294,67 @@ class NodeBuilder:
         if node.type == 'logarithm':
             return LogNode(self._traverse(node.childs[1]), self._traverse(node.childs[3]))
         if node.type == 'var':
-            return VarNode(node.value)
+            return VarNode(node.childs[0].value)
         if node.type == 'num':
-            return NumNode(node.value)
+            val = node.childs[0].value
+            return NumNode(float(val) if '.' in val else int(val))
 
     def _flatten(self, node: ParseNode):
-        pass
+        cur = node
+        op_dict = {'+': operator.add, '-': operator.sub, '*': operator.mul,
+                   '/': operator.floordiv, '%': operator.mod, '^': pow}
+        if node.type == 'expr':
+            ops = [op_dict['+']]
+            factors = [self._traverse(cur.childs[0])]
+            cur = cur.childs[1]
+            while len(cur.childs) > 0:
+                ops.append(op_dict[cur.childs[0].childs[0].value])
+                factors.append(self._traverse(cur.childs[1]))
+                cur = cur.childs[2]
+            return TermNode(ops, factors)
+
+        if node.type == 'term':
+            nu = [self._traverse(cur.childs[0])]
+            deno = []
+            cur = cur.childs[1]
+            while len(cur.childs) > 0:
+                op = cur.childs[0].childs[0].value
+                n = self._traverse(cur.childs[1])
+                if op == '*':
+                    nu.append(n)
+                if op == '/':
+                    deno.append(n)
+                cur = cur.childs[2]
+            return FactorNode(nu, deno)
+
+        if node.type == 'factor':
+            base = self._traverse(cur.childs[0])
+            cur = cur.childs[1]
+            while len(cur.childs) > 0:
+                n = self._traverse(cur.childs[1])
+                if isinstance(base, NumNode):
+                    if isinstance(n, NumNode):
+                        base = NumNode(base.value ** n.value)
+                    else:
+                        base = ExpoNode(base, n)
+                else:
+                    assert isinstance(n, NumNode)
+                    base = PolyNode(base, n.value)
+                cur = cur.childs[2]
+            return base
+
+    def _negate(self, node: MathNode):
+        if isinstance(node, NumNode):
+            node.value *= -1
+        if isinstance(node, TermNode):
+            op_new = {operator.add: operator.sub, operator.sub: operator.add}
+            node.ops = [op_new[x] for x in node.ops]
+        if isinstance(node, FactorNode):
+            for x in node.numerator:
+                self._negate(x)
+        if isinstance(node, BodyNode):
+            node.coef *= -1
 
 
+if __name__ == '__main__':
+    pass

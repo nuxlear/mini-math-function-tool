@@ -2,7 +2,7 @@ import itertools
 from collections import OrderedDict
 
 from mathlib.io.lexer import Lexer, TokenStream
-from mathlib.core.node import ParseNode
+from mathlib.core.node import *
 
 
 class Parser:
@@ -247,6 +247,12 @@ if __name__ == '__main__':
     # tree = s.parse(l.stream('3*sinx^2'))
     # tree = s.parse(l.stream('3*sinx + 4*cosx * 5^2'))
     # tree = s.parse(l.stream('x^3-2*x^2+4/7*x-10'))
-    tree = s.parse(l.stream('-1 * 3 - -5'))
+    # tree = s.parse(l.stream('-1 * 3 - -5'))
+    # tree = s.parse(l.stream('-5*log2_x^3+x^8-3.5^x'))
+    # tree = s.parse(l.stream('logx_y/x'))
+    tree = s.parse(l.stream('(x-1)^2 + 13*(x-1) - 7'))
     print(tree)
+
+    b = NodeBuilder().build(tree)
+    print(b)
 
