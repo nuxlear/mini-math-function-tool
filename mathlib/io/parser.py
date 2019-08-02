@@ -250,9 +250,10 @@ if __name__ == '__main__':
     # tree = s.parse(l.stream('-1 * 3 - -5'))
     # tree = s.parse(l.stream('-5*log2_x^3+x^8-3.5^x'))
     # tree = s.parse(l.stream('logx_y/x'))
-    tree = s.parse(l.stream('(x-1)^2 + 13*(x-1) - 7'))
+    tree = s.parse(l.stream('-x^2'))
+    # tree = s.parse(l.stream('(x-1)^2 + 13*(x-1) - 7'))
     print(tree)
 
     b = NodeBuilder().build(tree)
     print(b)
-
+    print(b.eval(x=3, y=7))

@@ -42,6 +42,10 @@ class MathNode:
     def __eq__(self, other):
         return self.__dict__ == other.__dict__
 
+    @abc.abstractmethod
+    def compare(self, other):
+        pass
+
 
 class NumNode(MathNode):
 
@@ -196,7 +200,7 @@ class LogNode(BodyNode):
 
     def __init__(self, base, body, coef=1):
         if isinstance(base, NumNode) and (base.eval() <= 0 or base.eval() == 1):
-            raise ValueError('Invalid base for logarithm: {}'.format(base))
+            raise ValueError('Invalid base for logarithm: {}'.format(base.eval()))
 
         super(LogNode, self).__init__(body, coef)
         self.base = base
@@ -207,7 +211,10 @@ class LogNode(BodyNode):
         return self.base == log.base
 
     def eval(self, **kwargs):
-        return self.coef * math.log(self.body.eval(**kwargs), self.base)
+        base = self.base.eval(**kwargs)
+        if base <= 0 or base == 1:
+            raise ValueError('Invalid base for logarithm: {}'.format(base))
+        return self.coef * math.log(self.body.eval(**kwargs), )
 
     def __str__(self):
         s = 'log{}_{}'.format(self.base, self.body)
@@ -264,14 +271,43 @@ class NodeBuilder:
 
     def __init__(self):
         self.math_tree = None
+        self.orders = {
+            PolyNode: 0,
+            NumNode: 1,
+            ExpoNode: 2,
+            TriNode: 3,
+            LogNode: 4,
+            FactorNode: 5,
+        }
 
     def build(self, parse_tree: ParseNode):
         self.math_tree = self._canonicalize(self._traverse(parse_tree))
         return self.math_tree
 
-    def _canonicalize(self, tree: MathNode):
+    def _compare(self, a: MathNode, b: MathNode):
+        if a.__class__ != b.__class__:
+            return self.orders[a.__class__] < self.orders[b.__class__]
+        return a.compare(b)
 
-        return tree
+    def _canonicalize(self, node: MathNode):
+        # TODO: two steps are needed
+        #   1. change NumNode in FactorNode to coefficient
+        #   2. sort nodes and merge similar nodes
+        if isinstance(node, TermNode):
+            pass
+        if isinstance(node, FactorNode):
+            pass
+        return node
+
+    def _sort(self, node):
+        if isinstance(node, TermNode):
+            pass
+        if isinstance(node, FactorNode):
+            pass
+        return node
+
+    def _merge_similar(self, node: MathNode):
+        pass
 
     def _traverse(self, node: ParseNode) -> MathNode:
 
