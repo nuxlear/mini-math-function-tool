@@ -1,6 +1,7 @@
 import abc
 import math
 import operator
+import functools
 
 
 class ParseNode:
@@ -25,7 +26,10 @@ class ParseNode:
         return self.value is not None
 
 
+@functools.total_ordering
 class MathNode:
+
+    order = None
 
     @abc.abstractmethod
     def eval(self, **kwargs):
@@ -39,15 +43,19 @@ class MathNode:
     def derivate(self, **kwargs):
         pass
 
-    def __eq__(self, other):
-        return self.__dict__ == other.__dict__
+    def __lt__(self, other):
+        if self.__class__ != other.__class__:
+            return self.order < other.order
+        return self._compare(other)
 
     @abc.abstractmethod
-    def compare(self, other):
+    def _compare(self, other):
         pass
 
 
 class NumNode(MathNode):
+
+    order = 1
 
     def __init__(self, value):
         self.value = value
@@ -61,8 +69,13 @@ class NumNode(MathNode):
     def __str__(self):
         return str(self.value)
 
+    def _compare(self, num):
+        return self.value < num.value
+
 
 class TermNode(MathNode):
+
+    order = 0
 
     def __init__(self, ops: list, factors: list):
         assert len(ops) == len(factors), 'the number of operations and factors are not equal.'
@@ -99,6 +112,8 @@ class TermNode(MathNode):
 
 class FactorNode(MathNode):
 
+    order = 5
+
     # TODO: fill this class for (exprs)/(exprs) notation
     def __init__(self, numerator: list, denominator: list):
         super(FactorNode, self).__init__()
@@ -129,6 +144,13 @@ class FactorNode(MathNode):
             return '({})/({})'.format(nu, deno)
         return nu
 
+    def _get_order(self):
+        return max([x.order for x in self.numerator]
+                   + [x.order for x in self.denominator])
+
+    def _compare(self, factor):
+        return self._get_order() < factor._get_order()
+
 
 class BodyNode(MathNode, metaclass=abc.ABCMeta):
 
@@ -143,14 +165,16 @@ class BodyNode(MathNode, metaclass=abc.ABCMeta):
     def eval(self, **kwargs):
         return self.coef * self.body.eval(**kwargs)
 
-    def multiply(self, n):
-        self.coef *= n
-
-    def set_coef(self, coef):
-        self.coef = coef
+    # def multiply(self, n):
+    #     self.coef *= n
+    #
+    # def set_coef(self, coef):
+    #     self.coef = coef
 
 
 class PolyNode(BodyNode):
+
+    order = 0
 
     def __init__(self, body, dim=1, coef=1):
         super(PolyNode, self).__init__(body, coef)
@@ -172,8 +196,13 @@ class PolyNode(BodyNode):
             return '{}*{}'.format(self.coef, s)
         return s
 
+    def _compare(self, poly):
+        return self.dim < poly.dim
+
 
 class ExpoNode(BodyNode):
+
+    order = 2
 
     def __init__(self, base, body, coef=1):
         super(ExpoNode, self).__init__(body, coef)
@@ -195,8 +224,13 @@ class ExpoNode(BodyNode):
             return '{}*{}'.format(self.coef, s)
         return s
 
+    def _compare(self, expo):
+        return self.base < expo.base
+
 
 class LogNode(BodyNode):
+
+    order = 4
 
     def __init__(self, base, body, coef=1):
         if isinstance(base, NumNode) and (base.eval() <= 0 or base.eval() == 1):
@@ -224,8 +258,13 @@ class LogNode(BodyNode):
             return '{}*{}'.format(self.coef, s)
         return s
 
+    def _compare(self, log):
+        return self.base < log.base
+
 
 class TriNode(BodyNode):
+
+    order = 3
 
     def __init__(self, func, body, coef=1):
         super(TriNode, self).__init__(body, coef)
@@ -248,8 +287,14 @@ class TriNode(BodyNode):
             return '{}*{}'.format(self.coef, s)
         return s
 
+    def _compare(self, tri):
+        func_order = {math.sin: 0, math.cos: 1, math.tan: 2}
+        return func_order[self.func] < func_order[tri.func]
+
 
 class VarNode(BodyNode):
+
+    order = 0.5
 
     def __init__(self, body, coef=1):
         super(VarNode, self).__init__(body, coef)
@@ -266,48 +311,83 @@ class VarNode(BodyNode):
     def __str__(self):
         return str(self.body)
 
+    def _compare(self, var):
+        return self.body < var.body
+
 
 class NodeBuilder:
 
     def __init__(self):
         self.math_tree = None
-        self.orders = {
-            PolyNode: 0,
-            NumNode: 1,
-            ExpoNode: 2,
-            TriNode: 3,
-            LogNode: 4,
-            FactorNode: 5,
-        }
 
     def build(self, parse_tree: ParseNode):
         self.math_tree = self._canonicalize(self._traverse(parse_tree))
         return self.math_tree
 
-    def _compare(self, a: MathNode, b: MathNode):
-        if a.__class__ != b.__class__:
-            return self.orders[a.__class__] < self.orders[b.__class__]
-        return a.compare(b)
+    # def _compare(self, a: MathNode, b: MathNode):
+    #     if a.__class__ != b.__class__:
+    #         return self.orders[a.__class__] < self.orders[b.__class__]
+    #     return a.compare(b)
+    #
+    # def _canonicalize(self, node: MathNode):
+    #     # TODO: two steps are needed
+    #     #   1. change NumNode in FactorNode to coefficient
+    #     #   2. sort nodes and merge similar nodes
+    #     if isinstance(node, TermNode):
+    #         pass
+    #     if isinstance(node, FactorNode):
+    #         pass
+    #     return node
+    #
+    # def _sort(self, node):
+    #     if isinstance(node, TermNode):
+    #         terms = [(op, factor) for op, factor in zip(node.ops, node.factors)]
+    #         terms.sort(key=lambda x: x[1])
+    #     if isinstance(node, FactorNode):
+    #         # nu = sorted(node.numerator, key=self._compare)
+    #         # deno = sorted(node.denominator, key=self._compare)
+    #         node.numerator.sort(key=self._compare)
+    #         node.denominator.sort(key=self._compare)
+    #     return node
+    #
+    # def _merge_similar(self, node: MathNode):
+    #     pass
 
     def _canonicalize(self, node: MathNode):
-        # TODO: two steps are needed
-        #   1. change NumNode in FactorNode to coefficient
-        #   2. sort nodes and merge similar nodes
         if isinstance(node, TermNode):
-            pass
+            for x in node.factors:
+                self._canonicalize(x)
+            # maybe integrate ops into NumNode in FactorNode is better
         if isinstance(node, FactorNode):
-            pass
+            # TODO: merge all NumNodes
+            #       sort all BodyNodes
+            #       additional canonicalization
+            nu, deno = 1, 1
+
+            for x in node.denominator:
+                if not isinstance(x, NumNode):
+                    continue
+                if x.value == 0:
+                    raise ZeroDivisionError('denominator of FactorNode `{}` contains 0.'.format(FactorNode))
+                deno *= x.value
+
+            for x in node.numerator:
+                if not isinstance(x, NumNode):
+                    continue
+                if x.value == 0:
+                    node.numerator = node.denominator = []
+                    break
+                nu *= x.value
+
+        self._sort(node)
         return node
 
-    def _sort(self, node):
+    def _sort(self, node: MathNode):
         if isinstance(node, TermNode):
-            pass
+            pass    # TODO: sort by factors with ops
         if isinstance(node, FactorNode):
-            pass
-        return node
-
-    def _merge_similar(self, node: MathNode):
-        pass
+            node.numerator.sort()
+            node.denominator.sort()
 
     def _traverse(self, node: ParseNode) -> MathNode:
 
@@ -386,10 +466,17 @@ class NodeBuilder:
             op_new = {operator.add: operator.sub, operator.sub: operator.add}
             node.ops = [op_new[x] for x in node.ops]
         if isinstance(node, FactorNode):
-            for x in node.numerator:
-                self._negate(x)
-        if isinstance(node, BodyNode):
-            node.coef *= -1
+            nu = [x for x in node.numerator if isinstance(x, NumNode)]
+            if len(nu) > 0:
+                self._negate(nu[0])
+                if nu[0].value == 1:
+                    node.numerator.remove(nu[0])
+            else:
+                node.numerator.insert(0, NumNode(-1))
+        #     for x in node.numerator:
+        #         self._negate(x)
+        # if isinstance(node, BodyNode):
+        #     node.coef *= -1
 
 
 if __name__ == '__main__':
