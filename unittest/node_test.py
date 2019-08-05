@@ -3,25 +3,47 @@ import unittest
 from mathlib.core.node import *
 
 
-class NumNodeEqualTest(unittest.TestCase):
-    def test_something(self):
-        a = NumNode(4)
-        b = NumNode(4)
-        self.assertEqual(True, a == b)
+# class NumNodeEqualTest(unittest.TestCase):
+#     def test(self):
+#         a = NumNode(4)
+#         b = NumNode(4)
+#         self.assertEqual(True, a == b)
+#
+#
+# class NumNodeDiffTest(unittest.TestCase):
+#     def test(self):
+#         a = NumNode(4)
+#         b = NumNode(-2)
+#         self.assertEqual(False, a == b)
 
 
-class NumNodeDiffTest(unittest.TestCase):
-    def test_something(self):
+class NumNodeSimilarTest(unittest.TestCase):
+    def test(self):
         a = NumNode(4)
         b = NumNode(-2)
-        self.assertEqual(False, a == b)
+        self.assertEqual(True, a.similar(b))
 
 
 class PolyNodeSimilarTest(unittest.TestCase):
-    def test_something(self):
+    def test(self):
         x = VarNode('x')
-        a = PolyNode(x, 3, 2)
-        b = PolyNode(x, -7, 2)
+        a = PolyNode(x, 2)
+        b = PolyNode(x, 2)
+        self.assertEqual(True, a.similar(b))
+
+
+class FactorSimilarTest(unittest.TestCase):
+    def test(self):
+        x = VarNode('x')
+        sin = TriNode('sin', VarNode('x'))
+        ex = ExpoNode(math.e, VarNode('x'))
+        a = FactorNode([x, sin], [ex, NumNode(2)])
+
+        x = VarNode('x')
+        sin = TriNode('sin', VarNode('x'))
+        ex = ExpoNode(math.e, VarNode('x'))
+        b = FactorNode([NumNode(10), x, sin], [ex])
+
         self.assertEqual(True, a.similar(b))
 
 
