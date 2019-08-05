@@ -380,30 +380,44 @@ class NodeBuilder:
         self.math_tree = None
 
     def build(self, parse_tree: ParseNode):
-        self.math_tree = self._canonicalize(self._traverse(parse_tree))
+        # self.math_tree = self._canonicalize(self._traverse(parse_tree))
+        self.math_tree = self._traverse(parse_tree)
         return self.math_tree
 
     def _canonicalize(self, node: MathNode):
-        if isinstance(node, TermNode):
-            for x in node.factors:
-                self._canonicalize(x)
-
-        if isinstance(node, FactorNode):
-            # TODO: merge all NumNodes
-            #       sort all BodyNodes
-            #       additional canonicalization
-            nu, deno = node.get_coef()
-            node.numerator = [x for x in node.numerator if not isinstance(x, NumNode)]
-            node.denominator = [x for x in node.denominator if not isinstance(x, NumNode)]
-
-            if nu != 0 and (nu != 1 or len(node.numerator) == 0):
-                node.numerator.insert(0, NumNode(nu))
-            if deno not in [0, 1]:
-                node.denominator.insert(0, NumNode(deno))
-
+        # if isinstance(node, TermNode):
+        #     for x in node.factors:
+        #         self._canonicalize(x)
+        #
+        # if isinstance(node, FactorNode):
+        #     # TODO: merge all NumNodes
+        #     #       sort all BodyNodes
+        #     #       additional canonicalization
+        #     nu, deno = node.coef
+        #     node.numerator = [x for x in node.numerator if not isinstance(x, NumNode)]
+        #     node.denominator = [x for x in node.denominator if not isinstance(x, NumNode)]
+        #
+        #     if nu != 0 and (nu != 1 or len(node.numerator) == 0):
+        #         node.numerator.insert(0, NumNode(nu))
+        #     if deno not in [0, 1]:
+        #         node.denominator.insert(0, NumNode(deno))
+        #
+        # self._sort(node)
+        # # merge similars
+        # return node
+        self._expand(node)
+        self._merge_similar(node)
+        self._remove_zeros(node)
         self._sort(node)
-        # merge similars
-        return node
+
+    def _expand(self, node):
+        pass
+
+    def _merge_similar(self, node: MathNode):
+        pass
+
+    def _remove_zeros(self, node: MathNode):
+        pass
 
     def _sort(self, node: MathNode):
         if isinstance(node, TermNode):
@@ -411,22 +425,6 @@ class NodeBuilder:
         if isinstance(node, FactorNode):
             node.numerator.sort()
             node.denominator.sort()
-
-    def _merge_similar(self, node: MathNode):
-        sim_list = []
-        if isinstance(node, TermNode):
-            i = 0
-            while i < len(node.factors):
-                x = node.factors[i]
-                for s in sim_list:
-                    if s.similar(x):
-                        s.add(x)
-                else:
-                    sim_list.append(x)
-        if isinstance(node, FactorNode):
-            pass
-        if isinstance(node, ExpoNode):
-            pass
 
     def _traverse(self, node: ParseNode) -> MathNode:
 
@@ -443,10 +441,8 @@ class NodeBuilder:
                 return self._traverse(node.childs[1])   # ( expr )
             return self._traverse(node.childs[0])
         if node.type == 'triangular':
-            # func_dict = {'sin': math.sin, 'cos': math.cos, 'tan': math.tan}
             func_name = node.childs[0].childs[0].value
             return TriNode(func_name, self._traverse(node.childs[1]))
-            # return TriNode(func_dict[func_name], self._traverse(node.childs[1]))
         if node.type == 'logarithm':
             return LogNode(self._traverse(node.childs[1]), self._traverse(node.childs[3]))
         if node.type == 'var':
@@ -505,13 +501,14 @@ class NodeBuilder:
             for f in node.factors:
                 self._negate(f)
         if isinstance(node, FactorNode):
-            nu = [x for x in node.numerator if isinstance(x, NumNode)]
-            if len(nu) > 0:
-                self._negate(nu[0])
-                if nu[0].value == 1 and len(node.numerator) > 1:
-                    node.numerator.remove(nu[0])
-            else:
-                node.numerator.insert(0, NumNode(-1))
+            node.coef = -node.coef[0], node.coef[1]
+            # nu = [x for x in node.numerator if isinstance(x, NumNode)]
+            # if len(nu) > 0:
+            #     self._negate(nu[0])
+            #     if nu[0].value == 1 and len(node.numerator) > 1:
+            #         node.numerator.remove(nu[0])
+            # else:
+            #     node.numerator.insert(0, NumNode(-1))
 
 
 if __name__ == '__main__':

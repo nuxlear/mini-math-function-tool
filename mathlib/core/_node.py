@@ -102,11 +102,12 @@ class FactorNode(MathNode):
         super(FactorNode, self).__init__()
         self.numerator = sorted(numerator)
         self.denominator = sorted(denominator)
+        self.coef = coef
+
+        self._update_coef()
 
         if coef[1] % 1 != 0:    # coef[1] is not `int`
             self.coef = coef[0] / coef[1], 1
-        else:
-            self.coef = coef
 
     def similar(self, other):
         if not isinstance(other, FactorNode):
@@ -136,6 +137,20 @@ class FactorNode(MathNode):
     def _get_order(self):
         return max([x.order for x in self.numerator]
                    + [x.order for x in self.denominator] + [0])
+
+    def _update_coef(self):
+        nu = [x for x in self.numerator if isinstance(x, NumNode)]
+        deno = [x for x in self.denominator if isinstance(x, NumNode)]
+
+        a, b = self.coef
+        for x in nu:
+            a *= x.value
+        for x in deno:
+            b *= x.value
+
+        self.numerator = [x for x in self.numerator if not isinstance(x, NumNode)]
+        self.denominator = [x for x in self.denominator if not isinstance(x, NumNode)]
+        self.coef = a, b
 
     def _merge(self, other):
         a, b = self.coef
