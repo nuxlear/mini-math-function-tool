@@ -380,51 +380,8 @@ class NodeBuilder:
         self.math_tree = None
 
     def build(self, parse_tree: ParseNode):
-        # self.math_tree = self._canonicalize(self._traverse(parse_tree))
         self.math_tree = self._traverse(parse_tree)
         return self.math_tree
-
-    def _canonicalize(self, node: MathNode):
-        # if isinstance(node, TermNode):
-        #     for x in node.factors:
-        #         self._canonicalize(x)
-        #
-        # if isinstance(node, FactorNode):
-        #     # TODO: merge all NumNodes
-        #     #       sort all BodyNodes
-        #     #       additional canonicalization
-        #     nu, deno = node.coef
-        #     node.numerator = [x for x in node.numerator if not isinstance(x, NumNode)]
-        #     node.denominator = [x for x in node.denominator if not isinstance(x, NumNode)]
-        #
-        #     if nu != 0 and (nu != 1 or len(node.numerator) == 0):
-        #         node.numerator.insert(0, NumNode(nu))
-        #     if deno not in [0, 1]:
-        #         node.denominator.insert(0, NumNode(deno))
-        #
-        # self._sort(node)
-        # # merge similars
-        # return node
-        self._expand(node)
-        self._merge_similar(node)
-        self._remove_zeros(node)
-        self._sort(node)
-
-    def _expand(self, node):
-        pass
-
-    def _merge_similar(self, node: MathNode):
-        pass
-
-    def _remove_zeros(self, node: MathNode):
-        pass
-
-    def _sort(self, node: MathNode):
-        if isinstance(node, TermNode):
-            node.factors.sort()
-        if isinstance(node, FactorNode):
-            node.numerator.sort()
-            node.denominator.sort()
 
     def _traverse(self, node: ParseNode) -> MathNode:
 
@@ -448,7 +405,10 @@ class NodeBuilder:
         if node.type == 'var':
             return VarNode(node.childs[0].value)
         if node.type == 'num':
+            const_dict = {'pi': math.pi, 'e': math.e}
             val = node.childs[0].value
+            if val in const_dict:
+                return NumNode(const_dict[val])
             return NumNode(float(val) if '.' in val else int(val))
 
     def _flatten(self, node: ParseNode):
@@ -462,6 +422,8 @@ class NodeBuilder:
                     self._negate(f)
                 factors.append(f)
                 cur = cur.childs[2]
+            if len(factors) == 1:
+                return factors[0]
             return TermNode(factors)
 
         if node.type == 'term':
@@ -476,6 +438,10 @@ class NodeBuilder:
                 if op == '/':
                     deno.append(n)
                 cur = cur.childs[2]
+            if len(nu) == 1 and len(deno) == 0:
+                if isinstance(nu[0], VarNode):
+                    return FactorNode(nu, [])
+                return nu[0]
             return FactorNode(nu, deno)
 
         if node.type == 'factor':
@@ -489,8 +455,10 @@ class NodeBuilder:
                     else:
                         base = ExpoNode(base, n)
                 else:
-                    assert isinstance(n, NumNode)
-                    base = PolyNode(base, n.value)
+                    if isinstance(n, NumNode):
+                        base = PolyNode(base, n.value)
+                    else:
+                        base = ExpoNode(base, n)
                 cur = cur.childs[2]
             return base
 
@@ -502,13 +470,109 @@ class NodeBuilder:
                 self._negate(f)
         if isinstance(node, FactorNode):
             node.coef = -node.coef[0], node.coef[1]
-            # nu = [x for x in node.numerator if isinstance(x, NumNode)]
-            # if len(nu) > 0:
-            #     self._negate(nu[0])
-            #     if nu[0].value == 1 and len(node.numerator) > 1:
-            #         node.numerator.remove(nu[0])
-            # else:
-            #     node.numerator.insert(0, NumNode(-1))
+
+
+class NodeSimplifier:
+
+    def canonicalize(self, node: MathNode):
+        node = self._expand(node)
+        node = self._merge_similar(node)
+        node = self._remove_zeros(node)
+        self._sort(node)
+        return node
+
+    def _expand(self, node):
+        return node
+
+    def _merge_similar(self, node: MathNode):
+        self._sort(node)
+        if isinstance(node, TermNode):
+            factors = self._merge_add([self._merge_similar(x) for x in node.factors])
+            return TermNode(factors)
+        # if isinstance(node, FactorNode):
+            # nu = self._merge_mul([self._merge_similar(x) for x in node.numerator])
+            # deno = self._merge_mul([self._merge_similar(x) for x in node.denominator])
+            # return FactorNode(nu, deno)
+        return node
+        # if isinstance(node, TermNode):
+        #     sim_list = []
+        #     for x in node.factors:
+        #         self._merge_similar(x)
+        #         for s in sim_list:
+        #             if s.similar(x):
+        #                 s += x
+        #                 break
+        #         else:
+        #             sim_list.append(x)
+        #     node.factors = sim_list
+        # if isinstance(node, FactorNode):
+        #     sim_list = []
+        #     for x in node.numerator:
+        #         self._merge_similar(x)
+        #         for s in sim_list:
+        #             if s.similar(x):
+
+    def _merge_add(self, node_list: list) -> list:
+        node_list = [x for x in node_list if x is not None]
+        sim_list = []
+        for x in node_list:
+            for s in sim_list:
+                if s.similar(x):
+                    s += x
+                    break
+            else:
+                sim_list.append(x)
+        return sim_list
+
+    def _merge_mul(self, node_list: list) -> list:
+        node_list = [x for x in node_list if x is not None]
+        sim_list = []
+        for x in node_list:
+            q = [x for x in sim_list]
+            while len(q) > 0:
+                cur = q.pop(0)
+                if q.similar(x):
+                    pass
+        return node_list
+
+    def _remove_zeros(self, node: MathNode):
+        if isinstance(node, TermNode):
+            node.factors = [x for x in node.factors if not self._is_zero(x)]
+        return node
+
+    def _is_zero(self, node: MathNode):
+        if isinstance(node, TermNode):
+            return len(node.factors) == 0
+        if isinstance(node, FactorNode):
+            if node.coef[0] == 0:
+                return True
+            for x in node.numerator:
+                if self._is_zero(x):
+                    return True
+            return False
+        if isinstance(node, NumNode):
+            return node.value == 0
+        if isinstance(node, PolyNode):
+            return self._is_zero(node.body)
+        if isinstance(node, ExpoNode):
+            return self._is_zero(node.base)
+        return False
+        # if isinstance(node, LogNode):
+        #     return self._is_one(node.body)
+        # if isinstance(node, TriNode):
+        #     return node.func in ['sin', 'tan'] and self._is_zero(node.body) \
+        #         or node.func == 'cos' and self._is_one(node.body)
+
+    def _sort(self, node: MathNode):
+        if isinstance(node, TermNode):
+            for x in node.factors:
+                self._sort(x)
+            node.factors.sort()
+        if isinstance(node, FactorNode):
+            for x in node.numerator + node.denominator:
+                self._sort(x)
+            node.numerator.sort()
+            node.denominator.sort()
 
 
 if __name__ == '__main__':

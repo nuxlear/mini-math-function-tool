@@ -40,4 +40,4 @@ logarithm -> LOG expr UNDER funbody
 
 var -> VAR
 
-num -> NUM
+num -> PI | E | NUM

@@ -76,7 +76,7 @@ class Lexer:
         def find_terminal(token):
             regexs = {}
             for k, v in self.tokens.items():
-                regexs[k] = re.compile(v) if len(v) > 1 else re.compile('\\' + v)
+                regexs[k] = re.compile(v) if len(v) > 1 or str.isalpha(v) else re.compile('\\' + v)
 
             for k in self.tokens.keys():
                 r, v = regexs[k], self.tokens[k]
