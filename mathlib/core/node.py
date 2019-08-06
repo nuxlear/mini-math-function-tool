@@ -385,15 +385,15 @@ class NodeBuilder:
 
     def _traverse(self, node: ParseNode) -> MathNode:
 
-        if node.type in ['expr', 'term', 'factor']:
+        if node.type in ['expr', 'term', 'body']:
             return self._flatten(node)
-        if node.type == 'expo':
-            prefix, body = node.childs
-            n = self._traverse(body)
+        if node.type == 'factor':
+            prefix, expo = node.childs
+            n = self._traverse(expo)
             if len(prefix.childs) > 0:
                 self._negate(n)
             return n
-        if node.type in ['body', 'function', 'funbody']:
+        if node.type in ['expo', 'function', 'funbody']:
             if len(node.childs) > 1:
                 return self._traverse(node.childs[1])   # ( expr )
             return self._traverse(node.childs[0])
@@ -444,7 +444,8 @@ class NodeBuilder:
                 return nu[0]
             return FactorNode(nu, deno)
 
-        if node.type == 'factor':
+        # TODO: fix along with parser_grammar
+        if node.type == 'body':
             base = self._traverse(cur.childs[0])
             cur = cur.childs[1]
             while len(cur.childs) > 0:
@@ -460,7 +461,7 @@ class NodeBuilder:
                     else:
                         base = ExpoNode(base, n)
                 cur = cur.childs[2]
-            return base
+            return FactorNode([base], [])
 
     def _negate(self, node: MathNode):
         if isinstance(node, NumNode):

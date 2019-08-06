@@ -10,17 +10,17 @@ factor_tail -> mul_op factor factor_tail
              | @
 mul_op -> MUL | DIV | MOD
 
-factor -> expo expo_tail
-
-expo_tail -> POW expo expo_tail
-           | @
-
-expo -> prefix body
+factor -> prefix body
 
 prefix -> SUB
         | @
 
-body -> LPAR expr RPAR
+body -> expo expo_tail
+
+expo_tail -> POW expo expo_tail
+           | @
+
+expo -> LPAR expr RPAR
       | function
       | var
       | num

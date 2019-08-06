@@ -234,15 +234,15 @@ class Parser:
 if __name__ == '__main__':
     l = Lexer('lexer_grammar')
     s = Parser('parser_grammar', l)
-    print('\n\t===== FIRST =====')
-    for k, v in s.first.items():
-        print('{} = {}'.format(k, v))
-    print('\n\t===== FOLLOW =====')
-    for k, v in s.follow.items():
-        print('{} = {}'.format(k, v))
-    print('\n\t===== TABLE =====')
-    for k, v in s.table.items():
-        print('{} = {}'.format(k, v))
+    # print('\n\t===== FIRST =====')
+    # for k, v in s.first.items():
+    #     print('{} = {}'.format(k, v))
+    # print('\n\t===== FOLLOW =====')
+    # for k, v in s.follow.items():
+    #     print('{} = {}'.format(k, v))
+    # print('\n\t===== TABLE =====')
+    # for k, v in s.table.items():
+    #     print('{} = {}'.format(k, v))
 
     # tree = s.parse(l.stream('3*sinx^2'))
     # tree = s.parse(l.stream('3*sinx + 4*cosx * 5^2'))
@@ -250,13 +250,14 @@ if __name__ == '__main__':
     # tree = s.parse(l.stream('-1 * 3 - -5'))
     # tree = s.parse(l.stream('-5*log2_x^3+x^8-3.5^x'))
     # tree = s.parse(l.stream('logx_y/x'))
-    # tree = s.parse(l.stream('1 + x^3 - 4*x - x^2'))
+    tree = s.parse(l.stream('1 + x^3 - 4*x - x^2'))
     # tree = s.parse(l.stream('sinx*x*-4*log2_(x^2)'))
     # tree = s.parse(l.stream('(x-1)^2 + 13*(x-1) - 7'))
-    tree = s.parse(l.stream('5*x - 4 + 2*x + 10 + pi^x'))
-    print(tree)
+    # tree = s.parse(l.stream('5*x - 4 + 2*x + 10 + pi^x'))
+    # print(tree)
 
     b = NodeBuilder().build(tree)
     b = NodeSimplifier().canonicalize(b)
+    print(repr(b))
     print(b)
     # print(b.eval(x=3, y=7))
