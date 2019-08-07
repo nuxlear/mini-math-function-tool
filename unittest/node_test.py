@@ -1,6 +1,6 @@
 import unittest
 
-from mathlib.core.node import *
+from mathlib.core.node_util import *
 
 
 # class NumNodeEqualTest(unittest.TestCase):

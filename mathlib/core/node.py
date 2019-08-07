@@ -2,579 +2,450 @@ import abc
 import math
 import functools
 
-from mathlib.core._node import *
+
+@functools.total_ordering
+class MathNode(metaclass=abc.ABCMeta):
+    order = None
+    #
+    # def __init__(self):
+    #     self.parent = None
+
+    @abc.abstractmethod
+    def similar(self, other) -> bool:
+        pass
+
+    def __lt__(self, other):
+        if self.__class__ != other.__class__:
+            return self.order < other.order
+        return self._compare(other)
+
+    def __eq__(self, other):
+        if self.__class__ != other.__class__:
+            return False
+        return self.__dict__ == other.__dict__
+
+    @abc.abstractmethod
+    def _compare(self, other) -> bool:
+        pass
+
+    @abc.abstractmethod
+    def __repr__(self):
+        pass
+
+    @abc.abstractmethod
+    def __str__(self):
+        pass
+
+    def __add__(self, other):
+        if not self.similar(other):
+            raise ArithmeticError('adding `{}` and `{}` is not defined'.format(self, other))
+        return self._add(other)
+
+    def __mul__(self, other):
+        # if not self.similar(other):
+        #     if isinstance(other, FactorNode):
+        #         return FactorNode([self] + other.numerator, other.denominator)
+        #     if isinstance(other, list):
+        #         return [self] + other
+        #     return FactorNode([self, other], [])
+        if not self.similar(other):
+            raise ArithmeticError('multiplying `{}` and `{}` is not defined'.format(self, other))
+        return self._mul(other)
+
+    @abc.abstractmethod
+    def _add(self, other) -> None:
+        pass
+
+    @abc.abstractmethod
+    def _mul(self, other) -> None:
+        pass
+
+    # @abc.abstractmethod
+    # def __sub__(self, other):
+    #     pass
+    #
+    # @abc.abstractmethod
+    # def __mul__(self, other):
+    #     pass
+    #
+    # @abc.abstractmethod
+    # def __truediv__(self, other):
+    #     pass
+    #
+    # @abc.abstractmethod
+    # def __neg__(self):
+    #     pass
 
 
-class ParseNode:
+class NumNode(MathNode):
+    order = 7
+    const_dict = {'pi': math.pi, 'e': math.e}
 
-    def __init__(self, value, type, parent):
-        self.value = value
-        self.type = type
-        self.parent = parent
+    def __init__(self, value):
+        if value in self.const_dict:
+            value = str(self.const_dict[value])
+        self.value = float(value) if '.' in str(value) else int(value)
 
-        self.childs = []
+    def similar(self, other):
+        return isinstance(other, NumNode)
 
-    def add_child(self, node):
-        self.childs.append(node)
+    def __repr__(self):
+        return 'Num({})'.format(self.value)
 
     def __str__(self):
-        if self.is_terminal():
-            return '{} -> `{}`'.format(self.type, self.value)
+        return str(self.value)
+
+    def _compare(self, other):
+        return self.value < other.value
+
+    def _add(self, other):
+        self.value += other.value
+
+    def _mul(self, other):
+        if isinstance(other, NumNode):
+            self.value *= other.value
+        if other.__class__ in [int, float]:
+            self.value *= other
         else:
-            return '{} -> [{}]'.format(self.type, ', '.join(map(str, self.childs)))
-
-    def is_terminal(self):
-        return self.value is not None
+            return other * self
 
 
-# @functools.total_ordering
-# class MathNode:
-#
-#     order = None
-#
-#     @abc.abstractmethod
-#     def eval(self, **kwargs):
-#         pass
-#
-#     @abc.abstractmethod
-#     def similar(self, other):
-#         pass
-#
-#     @abc.abstractmethod
-#     def derivate(self, **kwargs):
-#         pass
-#
-#     @abc.abstractmethod
-#     def add(self, other):
-#         pass
-#
-#     def __lt__(self, other):
-#         if self.__class__ != other.__class__:
-#             return self.order < other.order
-#         return self._compare(other)
-#
-#     @abc.abstractmethod
-#     def _compare(self, other):
-#         pass
-#
-#
-# class NumNode(MathNode):
-#
-#     order = 0
-#
-#     def __init__(self, value):
-#         self.value = value
-#
-#     def similar(self, num):
-#         return isinstance(num, NumNode)
-#
-#     def eval(self, **kwargs):
-#         return self.value
-#
-#     def add(self, num):
-#         self.value += num.value
-#
-#     def __str__(self):
-#         return str(self.value)
-#
-#     def _compare(self, num):
-#         return self.value < num.value
-#
-#
-# class TermNode(MathNode):
-#
-#     order = 0
-#
-#     def __init__(self, factors: list):
-#         super(TermNode, self).__init__()
-#         self.factors = factors
-#
-#     def similar(self, term):
-#         if not isinstance(term, TermNode):
-#             return False
-#         ans = True
-#         for our, their in zip(self.factors, term.factors):
-#             ans = ans and our.similar(their)
-#         return ans
-#
-#     def eval(self, **kwargs):
-#         ans = 0
-#         for f in self.factors:
-#             ans += f.eval(**kwargs)
-#         return ans
-#
-#     def add(self, term):
-#         self.factors.extend(term.factors)
-#
-#     def __str__(self):
-#         s = ''
-#         for i, f in enumerate(self.factors):
-#             nu, deno = f.get_coef()
-#             if nu / deno < 0:
-#                 s += ' - '
-#             elif i > 0:
-#                 s += ' + '
-#             s += '({})'.format(str(f))
-#         return s
-#
-#
-# class FactorNode(MathNode):
-#
-#     order = 5
-#
-#     def __init__(self, numerator: list, denominator: list):
-#         super(FactorNode, self).__init__()
-#         self.numerator = numerator
-#         self.denominator = denominator
-#
-#     def similar(self, factor):
-#         # if not isinstance(factor, FactorNode) \
-#         #         or len(self.denominator) != len(factor.denominator):
-#         #     return False
-#         # ans = True
-#         # for x, y in zip(self.denominator, factor.denominator):
-#         #     ans = ans and x.similar(y)
-#         if not isinstance(factor, FactorNode):
-#             return False
-#         nu, deno = self.get_dim()
-#         fnu, fdeno = factor.get_dim()
-#         if len(nu) != len(fnu) or len(deno) != len(fdeno):
-#             return False
-#         ans = True
-#         for x, y in zip(nu, fnu):
-#             ans = ans and x.similar(y)
-#         for x, y in zip(deno, fdeno):
-#             ans = ans and x.similar(y)
-#         return ans
-#
-#     def eval(self, **kwargs):
-#         numerator, denominator = 1, 1
-#         for x in self.numerator:
-#             numerator *= x.eval(**kwargs)
-#         for x in self.denominator:
-#             denominator *= x.eval(**kwargs)
-#         return numerator / denominator
-#
-#     def add(self, factor):
-#         nu, deno = self.get_coef()
-#         fnu, fdeno = factor.get_coef()
-#
-#         gcd = math.gcd(deno, fdeno)
-#         new_nu = (nu * gcd / deno) + (fnu * gcd / fdeno)
-#
-#         xnu, xdeno = self.get_dim()
-#         if new_nu != 1:
-#             xnu.insert(0, NumNode(new_nu))
-#         if gcd != 1:
-#             xdeno.insert(0, NumNode(gcd))
-#         self.numerator = xnu
-#         self.denominator = xdeno
-#
-#     def __str__(self):
-#         # TODO: check sign and coef for pretty string
-#         abs_str = lambda x: str(abs(x.value) if isinstance(x, NumNode) else x)
-#         nu = '*'.join(map(abs_str, self.numerator))
-#         if len(self.denominator) > 0:
-#             deno = '*'.join(map(abs_str, self.denominator))
-#             return '({})/({})'.format(nu, deno)
-#         return nu
-#
-#     def get_coef(self):
-#         nu, deno = 1, 1
-#         for x in self.denominator:
-#             if not isinstance(x, NumNode):
-#                 continue
-#             if x.value == 0:
-#                 raise ZeroDivisionError('denominator of FactorNode `{}` contains 0.'.format(FactorNode))
-#             deno *= x.value
-#
-#         for x in self.numerator:
-#             if not isinstance(x, NumNode):
-#                 continue
-#             if x.value == 0:
-#                 self.numerator = self.denominator = []
-#                 break
-#             nu *= x.value
-#
-#         return nu, deno
-#
-#     def get_dim(self):
-#         nu = [x for x in self.numerator if not isinstance(x, NumNode)]
-#         deno = [x for x in self.denominator if not isinstance(x, NumNode)]
-#         return sorted(nu), sorted(deno)
-#
-#     def _get_order(self):
-#         return max([x.order for x in self.numerator]
-#                    + [x.order for x in self.denominator] + [0])
-#
-#     def _compare(self, factor):
-#         return self._get_order() < factor._get_order()
-#
-#
-# class BodyNode(MathNode, metaclass=abc.ABCMeta):
-#
-#     def __init__(self, body, coef=1):
-#         self.body = body
-#         self.coef = coef
-#
-#     @abc.abstractmethod
-#     def similar(self, other):
-#         pass
-#
-#     def eval(self, **kwargs):
-#         return self.coef * self.body.eval(**kwargs)
-#
-#     # def multiply(self, n):
-#     #     self.coef *= n
-#     #
-#     # def set_coef(self, coef):
-#     #     self.coef = coef
-#
-#
-# class PolyNode(BodyNode):
-#
-#     order = 1
-#
-#     def __init__(self, body, dim=1, coef=1):
-#         super(PolyNode, self).__init__(body, coef)
-#         self.dim = dim
-#
-#     def similar(self, poly):
-#         if not isinstance(poly, PolyNode):
-#             return False
-#         return poly.body.similar(self.body) and poly.dim == self.dim
-#
-#     def eval(self, **kwargs):
-#         return self.coef * (self.body.eval(**kwargs) ** self.dim)
-#
-#     def __str__(self):
-#         s = '({})^{}'.format(self.body, self.dim)
-#         if self.coef == -1:
-#             return '-{}'.format(s)
-#         elif self.coef != 1:
-#             return '{}*{}'.format(self.coef, s)
-#         return s
-#
-#     def _compare(self, poly):
-#         return self.dim < poly.dim
-#
-#
-# class ExpoNode(BodyNode):
-#
-#     order = 2
-#
-#     def __init__(self, base, body, coef=1):
-#         super(ExpoNode, self).__init__(body, coef)
-#         self.base = base
-#
-#     def similar(self, expo):
-#         if not isinstance(expo, ExpoNode):
-#             return False
-#         return self.base == expo.base
-#
-#     def eval(self, **kwargs):
-#         return self.coef * (self.base ** self.body.eval(**kwargs))
-#
-#     def __str__(self):
-#         s = '({})^{}'.format(self.base, self.body)
-#         if self.coef == -1:
-#             return '-{}'.format(s)
-#         elif self.coef != 1:
-#             return '{}*{}'.format(self.coef, s)
-#         return s
-#
-#     def _compare(self, expo):
-#         return self.base < expo.base
-#
-#
-# class LogNode(BodyNode):
-#
-#     order = 4
-#
-#     def __init__(self, base, body, coef=1):
-#         if isinstance(base, NumNode) and (base.eval() <= 0 or base.eval() == 1):
-#             raise ValueError('Invalid base for logarithm: {}'.format(base.eval()))
-#
-#         super(LogNode, self).__init__(body, coef)
-#         self.base = base
-#
-#     def similar(self, log):
-#         if not isinstance(log, LogNode):
-#             return False
-#         return self.base == log.base
-#
-#     def eval(self, **kwargs):
-#         base = self.base.eval(**kwargs)
-#         if base <= 0 or base == 1:
-#             raise ValueError('Invalid base for logarithm: {}'.format(base))
-#         return self.coef * math.log(self.body.eval(**kwargs), )
-#
-#     def __str__(self):
-#         s = 'log{}_{}'.format(self.base, self.body)
-#         if self.coef == -1:
-#             return '-{}'.format(s)
-#         elif self.coef != 1:
-#             return '{}*{}'.format(self.coef, s)
-#         return s
-#
-#     def _compare(self, log):
-#         return self.base < log.base
-#
-#
-# class TriNode(BodyNode):
-#
-#     order = 3
-#
-#     def __init__(self, func, body, coef=1):
-#         super(TriNode, self).__init__(body, coef)
-#         self.func = func
-#
-#     def similar(self, tri):
-#         if not isinstance(tri, TriNode):
-#             return False
-#         return self.func == tri.func
-#
-#     def eval(self, **kwargs):
-#         return self.coef * self.func(self.body.eval(**kwargs))
-#
-#     def __str__(self):
-#         func_str = {math.sin: 'sin', math.cos: 'cos', math.tan: 'tan'}
-#         s = '{}{}'.format(func_str[self.func], self.body)
-#         if self.coef == -1:
-#             return '-{}'.format(s)
-#         elif self.coef != 1:
-#             return '{}*{}'.format(self.coef, s)
-#         return s
-#
-#     def _compare(self, tri):
-#         func_order = {math.sin: 0, math.cos: 1, math.tan: 2}
-#         return func_order[self.func] < func_order[tri.func]
-#
-#
-# class VarNode(BodyNode):
-#
-#     order = 0.5
-#
-#     def __init__(self, body, coef=1):
-#         super(VarNode, self).__init__(body, coef)
-#
-#     def similar(self, var):
-#         if not isinstance(var, VarNode):
-#             return False
-#         return self.body == var.body
-#
-#     def eval(self, **kwargs):
-#         assert self.body in kwargs, 'undefined variable: {}'.format(self.body)
-#         return kwargs[self.body]
-#
-#     def __str__(self):
-#         return str(self.body)
-#
-#     def _compare(self, var):
-#         return self.body < var.body
+class TermNode(MathNode):
+    order = -1
 
+    def __init__(self, factors: list):
+        super(TermNode, self).__init__()
+        self.factors = sorted(factors)
 
-class NodeBuilder:
-
-    def __init__(self):
-        self.math_tree = None
-
-    def build(self, parse_tree: ParseNode):
-        self.math_tree = self._traverse(parse_tree)
-        return self.math_tree
-
-    def _traverse(self, node: ParseNode) -> MathNode:
-
-        if node.type in ['expr', 'term', 'body']:
-            return self._flatten(node)
-        if node.type == 'factor':
-            prefix, expo = node.childs
-            n = self._traverse(expo)
-            if len(prefix.childs) > 0:
-                self._negate(n)
-            return n
-        if node.type in ['expo', 'function', 'funbody']:
-            if len(node.childs) > 1:
-                return self._traverse(node.childs[1])   # ( expr )
-            return self._traverse(node.childs[0])
-        if node.type == 'triangular':
-            func_name = node.childs[0].childs[0].value
-            return TriNode(func_name, self._traverse(node.childs[1]))
-        if node.type == 'logarithm':
-            return LogNode(self._traverse(node.childs[1]), self._traverse(node.childs[3]))
-        if node.type == 'var':
-            return VarNode(node.childs[0].value)
-        if node.type == 'num':
-            const_dict = {'pi': math.pi, 'e': math.e}
-            val = node.childs[0].value
-            if val in const_dict:
-                return NumNode(const_dict[val])
-            return NumNode(float(val) if '.' in val else int(val))
-
-    def _flatten(self, node: ParseNode):
-        cur = node
-        if node.type == 'expr':
-            factors = [self._traverse(cur.childs[0])]
-            cur = cur.childs[1]
-            while len(cur.childs) > 0:
-                f = self._traverse(cur.childs[1])
-                if cur.childs[0].childs[0].value == '-':
-                    self._negate(f)
-                factors.append(f)
-                cur = cur.childs[2]
-            if len(factors) == 1:
-                return factors[0]
-            return TermNode(factors)
-
-        if node.type == 'term':
-            nu = [self._traverse(cur.childs[0])]
-            deno = []
-            cur = cur.childs[1]
-            while len(cur.childs) > 0:
-                op = cur.childs[0].childs[0].value
-                n = self._traverse(cur.childs[1])
-                if op == '*':
-                    nu.append(n)
-                if op == '/':
-                    deno.append(n)
-                cur = cur.childs[2]
-            if len(nu) == 1 and len(deno) == 0:
-                if isinstance(nu[0], VarNode):
-                    return FactorNode(nu, [])
-                return nu[0]
-            return FactorNode(nu, deno)
-
-        # TODO: fix along with parser_grammar
-        if node.type == 'body':
-            base = self._traverse(cur.childs[0])
-            cur = cur.childs[1]
-            while len(cur.childs) > 0:
-                n = self._traverse(cur.childs[1])
-                if isinstance(base, NumNode):
-                    if isinstance(n, NumNode):
-                        base = NumNode(base.value ** n.value)
-                    else:
-                        base = ExpoNode(base, n)
-                else:
-                    if isinstance(n, NumNode):
-                        base = PolyNode(base, n.value)
-                    else:
-                        base = ExpoNode(base, n)
-                cur = cur.childs[2]
-            return FactorNode([base], [])
-
-    def _negate(self, node: MathNode):
-        if isinstance(node, NumNode):
-            node.value *= -1
-        if isinstance(node, TermNode):
-            for f in node.factors:
-                self._negate(f)
-        if isinstance(node, FactorNode):
-            node.coef = -node.coef[0], node.coef[1]
-
-
-class NodeSimplifier:
-
-    def canonicalize(self, node: MathNode):
-        node = self._expand(node)
-        node = self._merge_similar(node)
-        node = self._remove_zeros(node)
-        self._sort(node)
-        return node
-
-    def _expand(self, node):
-        return node
-
-    def _merge_similar(self, node: MathNode):
-        self._sort(node)
-        if isinstance(node, TermNode):
-            factors = self._merge_add([self._merge_similar(x) for x in node.factors])
-            return TermNode(factors)
-        # if isinstance(node, FactorNode):
-            # nu = self._merge_mul([self._merge_similar(x) for x in node.numerator])
-            # deno = self._merge_mul([self._merge_similar(x) for x in node.denominator])
-            # return FactorNode(nu, deno)
-        return node
-        # if isinstance(node, TermNode):
-        #     sim_list = []
-        #     for x in node.factors:
-        #         self._merge_similar(x)
-        #         for s in sim_list:
-        #             if s.similar(x):
-        #                 s += x
-        #                 break
-        #         else:
-        #             sim_list.append(x)
-        #     node.factors = sim_list
-        # if isinstance(node, FactorNode):
-        #     sim_list = []
-        #     for x in node.numerator:
-        #         self._merge_similar(x)
-        #         for s in sim_list:
-        #             if s.similar(x):
-
-    def _merge_add(self, node_list: list) -> list:
-        node_list = [x for x in node_list if x is not None]
-        sim_list = []
-        for x in node_list:
-            for s in sim_list:
-                if s.similar(x):
-                    s += x
-                    break
-            else:
-                sim_list.append(x)
-        return sim_list
-
-    def _merge_mul(self, node_list: list) -> list:
-        node_list = [x for x in node_list if x is not None]
-        sim_list = []
-        for x in node_list:
-            q = [x for x in sim_list]
-            while len(q) > 0:
-                cur = q.pop(0)
-                if q.similar(x):
-                    pass
-        return node_list
-
-    def _remove_zeros(self, node: MathNode):
-        if isinstance(node, TermNode):
-            node.factors = [x for x in node.factors if not self._is_zero(x)]
-        return node
-
-    def _is_zero(self, node: MathNode):
-        if isinstance(node, TermNode):
-            return len(node.factors) == 0
-        if isinstance(node, FactorNode):
-            if node.coef[0] == 0:
-                return True
-            for x in node.numerator:
-                if self._is_zero(x):
-                    return True
+    def similar(self, other):
+        if not isinstance(other, TermNode) \
+                or len(self.factors) != len(other.factors):
             return False
-        if isinstance(node, NumNode):
-            return node.value == 0
-        if isinstance(node, PolyNode):
-            return self._is_zero(node.body)
-        if isinstance(node, ExpoNode):
-            return self._is_zero(node.base)
-        return False
-        # if isinstance(node, LogNode):
-        #     return self._is_one(node.body)
-        # if isinstance(node, TriNode):
-        #     return node.func in ['sin', 'tan'] and self._is_zero(node.body) \
-        #         or node.func == 'cos' and self._is_one(node.body)
+        ans = True
+        for s, o in zip(self.factors, other.factors):
+            ans = ans and s.similar(o)
+        return ans
 
-    def _sort(self, node: MathNode):
-        if isinstance(node, TermNode):
-            for x in node.factors:
-                self._sort(x)
-            node.factors.sort()
-        if isinstance(node, FactorNode):
-            for x in node.numerator + node.denominator:
-                self._sort(x)
-            node.numerator.sort()
-            node.denominator.sort()
+    def __repr__(self):
+        return 'Term({})'.format(', '.join(map(repr, self.factors)))
+
+    def __str__(self):
+        return ' + '.join(map(str, self.factors))
+
+    def _compare(self, other):
+        return len(self.factors) < len(other.factors)
+
+    def _add(self, other):
+        self.factors.extend(other.factors)
+
+    def _mul(self, other):
+        if isinstance(other, NumNode):
+            for x in self.factors:
+                x *= other
+        return FactorNode([self, other], [])
 
 
-if __name__ == '__main__':
-    pass
+class FactorNode(MathNode):
+    order = 5
+
+    def __init__(self, numerator: list, denominator: list, coef=(1, 1)):
+        super(FactorNode, self).__init__()
+        self.numerator = sorted(numerator)
+        self.denominator = sorted(denominator)
+        self.coef = coef
+
+        self.update_coef()
+
+        if coef[1] % 1 != 0:    # coef[1] is not `int`
+            self.coef = coef[0] / coef[1], 1
+
+    def similar(self, other):
+        if not isinstance(other, FactorNode):
+            return False
+        nu, deno = self._get_dim()
+        fnu, fdeno = other._get_dim()
+        if len(nu) != len(fnu) or len(deno) != len(fdeno):
+            return False
+        ans = True
+        for x, y in zip(nu, fnu):
+            ans = ans and x.similar(y)
+        for x, y in zip(deno, fdeno):
+            ans = ans and x.similar(y)
+        return ans
+
+    def __repr__(self):
+        nu = '{}'.format(self.coef[0])
+        if len(self.numerator) > 0:
+            nu += ' * {}'.format(', '.join(map(repr, self.numerator)))
+        if self.coef[1] == 1 and len(self.denominator) == 0:
+            s = nu
+        else:
+            deno = '{}'.format(self.coef[1])
+            if len(self.denominator) > 0:
+                deno += ' * {}'.format(', '.join(map(repr, self.denominator)))
+            s = '{} / {}'.format(nu, deno)
+        return 'Factor({})'.format(s)
+
+    def __str__(self):
+        nu, deno = '', ''
+        if len(self.numerator) > 0:
+            nu = '*'.join(map(str, self.numerator))
+        if len(self.denominator) > 0:
+            deno = '*'.join(map(str, self.denominator))
+
+        if nu == '':
+            nu = str(self.coef[0])
+        elif self.coef[0] != 1:
+            nu = '{}*{}'.format(self.coef[0], nu)
+
+        if deno == '' and self.coef[1] != 1:
+            nu += ' / {}'.format(self.coef[1])
+        elif deno != '':
+            if self.coef[1] != 1:
+                deno = '{}*{}'.format(self.coef[1], deno)
+            nu += ' / {}'.format(deno)
+
+        return '({})'.format(nu)
+
+    def _compare(self, other):
+        return self._get_order() < other._get_order()
+
+    def _get_dim(self):
+        return self.numerator, self.denominator
+
+    def _get_order(self):
+        k = [x.order for x in self.numerator] + [x.order for x in self.denominator]
+        return max(k) if len(k) > 0 else 7
+
+    def _intify(self, coef):
+        a, b = coef
+        if a % 1 == 0:
+            a = int(a)
+        if b % 1 == 0:
+            b = int(b)
+        return a, b
+
+    def update_coef(self):
+        nu = [x for x in self.numerator if isinstance(x, NumNode)]
+        deno = [x for x in self.denominator if isinstance(x, NumNode)]
+
+        a, b = self.coef
+        for x in nu:
+            a *= x.value
+        for x in deno:
+            b *= x.value
+
+        self.numerator = [x for x in self.numerator if not isinstance(x, NumNode)]
+        self.denominator = [x for x in self.denominator if not isinstance(x, NumNode)]
+        self.coef = self._intify((a, b))
+
+    def _add(self, other):
+        a, b = self.coef
+        c, d = other.coef
+
+        gcd = math.gcd(b, d)
+        nu = (a * gcd / b) + (c * gcd / d)
+        self.coef = self._intify((nu, gcd))
+        return self
+
+    def _mul(self, other):
+        if isinstance(other, TermNode):
+            return other * self
+        if isinstance(other, FactorNode):
+            return self
+            # nu = self.numerator + other.numerator
+            # deno = self.denominator + other.denominator
+            # # TODO: simplify nu & deno
+            # return FactorNode(nu, deno)
+        if isinstance(other, NumNode):
+            self.coef = other.value * self.coef[0], self.coef[1]
+            return self
+        if isinstance(other, MathNode):
+            self.numerator.append(other)
+            return self
+
+
+class PolyNode(MathNode):
+    order = 1
+
+    def __init__(self, body, dim=1):
+        super(PolyNode, self).__init__()
+        self.body = body
+        self.dim = float(dim) if '.' in str(dim) else int(dim)
+
+    def similar(self, other):
+        if not isinstance(other, PolyNode):
+            return False
+        return other.body.similar(self.body) and other.dim == self.dim
+
+    def __repr__(self):
+        return 'Poly({}, {})'.format(repr(self.body), self.dim)
+
+    def __str__(self):
+        if isinstance(self.body, TermNode):
+            return '({})^{}'.format(self.body, self.dim)
+        return '{}^{}'.format(self.body, self.dim)
+
+    def _compare(self, other):
+        return self.dim > other.dim
+
+    def _add(self, other):
+        return FactorNode([self], [], (2, 1))
+
+    def _mul(self, other):
+        if other.__class__ in [TermNode, FactorNode]:
+            return other * self
+        if isinstance(other, NumNode):
+            return FactorNode([self], [], (other.value, 1))
+        if self.similar(other):
+            dim = self.dim + other.dim
+            return PolyNode(self.body, dim)
+        if isinstance(other, MathNode):
+            return FactorNode([self, other], [])
+
+
+class ExpoNode(MathNode):
+    order = 2
+
+    def __init__(self, base, body):
+        super(ExpoNode, self).__init__()
+        self.base = base
+        self.body = body
+
+    def similar(self, other):
+        if not isinstance(other, ExpoNode):
+            return False
+        return self == other
+
+    def __repr__(self):
+        return 'Expo({}, {})'.format(repr(self.base), repr(self.body))
+
+    def __str__(self):
+        base = '({})'.format(self.base) if isinstance(self.base, TermNode) else str(self.base)
+        body = '({})'.format(self.body) if isinstance(self.body, TermNode) else str(self.body)
+        return '{}^{}'.format(base, body)
+
+    def _compare(self, other):
+        return self.base < other.base
+
+    def _add(self, other):
+        return FactorNode([self], [], (2, 1))
+
+    def _mul(self, other):
+        if other.__class__ in [TermNode, FactorNode]:
+            return other * self
+        if isinstance(other, NumNode):
+            return FactorNode([self], [], (other.value, 1))
+        if isinstance(other, ExpoNode):
+            if self.similar(other):
+                self.body = TermNode([self.body, other.body])
+            else:
+                self.body
+        if isinstance(other, MathNode):
+            return FactorNode([self, other], [])
+
+
+class LogNode(MathNode):
+    order = 4
+
+    def __init__(self, base, body):
+        if isinstance(base, NumNode) and (base.value <= 0 or base.value == 1):
+            raise ValueError('Invalid base for logarithm: {}'.format(base.value))
+
+        super(LogNode, self).__init__()
+        self.base = base
+        self.body = body
+
+    def similar(self, other):
+        if not isinstance(other, LogNode):
+            return False
+        return self.base == other.base
+
+    def __repr__(self):
+        return 'Log({}, {})'.format(repr(self.base), repr(self.body))
+
+    def __str__(self):
+        base = '({})'.format(self.base) if isinstance(self.base, TermNode) else str(self.base)
+        # body = '({})'.format(self.body) if isinstance(self.body, TermNode) else str(self.body)
+        return 'log{}_({})'.format(base, self.body)
+
+    def _compare(self, other):
+        return self.base < other.base
+
+    def _add(self, other):
+        self.body = TermNode([FactorNode([self.body, other.body], [])])
+
+    def _mul(self, other):
+        if other.__class__ in [TermNode, FactorNode]:
+            return other * self
+        if isinstance(other, NumNode):
+            return FactorNode([self], [], (other.value, 1))
+        if isinstance(other, MathNode):
+            return FactorNode([self, other], [])
+
+
+class TriNode(MathNode):
+    order = 3
+
+    def __init__(self, func, body):
+        super(TriNode, self).__init__()
+        self.func = func
+        self.body = body
+
+    def similar(self, other):
+        if not isinstance(other, TriNode):
+            return False
+        return self.func == other.func
+
+    def __repr__(self):
+        func = self.func[0].upper() + self.func[1:]
+        return '{}({})'.format(func, repr(self.body))
+
+    def __str__(self):
+        # body = '({})'.format(self.body) if isinstance(self.body, TermNode) else str(self.body)
+        return '{}({})'.format(self.func, self.body)
+
+    def _compare(self, other):
+        func_order = {'sin': 0, 'cos': 1, 'tan': 2}
+        return func_order[self.func] < func_order[other.func]
+
+    def _add(self, other):
+        return FactorNode([self], [], (2, 1))
+
+    def _mul(self, other):
+        if other.__class__ in [TermNode, FactorNode]:
+            return other * self
+        if isinstance(other, NumNode):
+            return FactorNode([self], [], (other.value, 1))
+        if isinstance(other, MathNode):
+            return FactorNode([self, other], [])
+
+
+class VarNode(MathNode):
+    order = 1.5
+
+    def __init__(self, name):
+        super(VarNode, self).__init__()
+        self.name = name
+
+    def similar(self, other):
+        if not isinstance(other, VarNode):
+            return False
+        return self.name == other.name
+
+    def __repr__(self):
+        return 'Var({})'.format(self.name)
+
+    def __str__(self):
+        return self.name
+
+    def _compare(self, other):
+        return self.name < other.name
+
+    def _add(self, other):
+        # ???
+        pass
+
+    def _mul(self, other):
+        pass
+
