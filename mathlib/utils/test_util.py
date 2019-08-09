@@ -1,6 +1,7 @@
 from mathlib.io.lexer import Lexer
 from mathlib.io.parser import Parser
-from mathlib.core.node_util import *
+from mathlib.core.builder import *
+from mathlib.core.simplifier import *
 
 
 def notation_test(string):

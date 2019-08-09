@@ -2,7 +2,8 @@ import itertools
 from collections import OrderedDict
 
 from mathlib.io.lexer import Lexer, TokenStream
-from mathlib.core.node_util import *
+from mathlib.core.builder import *
+from mathlib.core.simplifier import *
 
 
 class Parser:
