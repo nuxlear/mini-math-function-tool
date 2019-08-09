@@ -4,6 +4,9 @@ from mathlib.core.node_util import *
 
 class NodeSimplifier:
 
+    def __init__(self):
+        self.domain = dict()
+
     def canonicalize(self, node: MathNode):
         _node = node
         # while True:
@@ -22,9 +25,10 @@ class NodeSimplifier:
         _node = self.unpack(_node)
         _node = self._merge_similar(self.pack(_node))
         _node = self._remove_zeros(_node)
+        _node = self.unpack(_node)
         self._sort(_node)
         node = _node
-        return node
+        return node, self.domain
 
     def pack(self, node):
         if not isinstance(node, TermNode):
@@ -121,6 +125,7 @@ class NodeSimplifier:
             return node
 
         if isinstance(node, LogNode):
+            # TODO: check domain
             base = self._preprocess(node.base)
             body = self._preprocess(node.body)
             if isinstance(body, ExpoNode):
@@ -240,7 +245,7 @@ class NodeSimplifier:
     def _merge_similar(self, node: MathNode):
         self._sort(node)
         if isinstance(node, TermNode):
-            factors = self._merge_add([self._merge_similar(x) for x in node.factors])
+            factors = self._merge_add([self._merge_similar(x if isinstance(x, FactorNode) else FactorNode([x])) for x in node.factors])
             return TermNode(factors)
         if isinstance(node, FactorNode):
             nu = self._merge_mul([self._merge_similar(x) for x in node.numerator])
