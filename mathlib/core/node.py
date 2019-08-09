@@ -11,7 +11,11 @@ class MathNode(metaclass=abc.ABCMeta):
     #     self.parent = None
 
     @abc.abstractmethod
-    def similar(self, other) -> bool:
+    def similar_add(self, other) -> bool:
+        pass
+
+    @abc.abstractmethod
+    def similar_mul(self, other) -> bool:
         pass
 
     def __lt__(self, other):
@@ -37,7 +41,7 @@ class MathNode(metaclass=abc.ABCMeta):
         pass
 
     def __add__(self, other):
-        if not self.similar(other):
+        if not self.similar_add(other):
             raise ArithmeticError('adding `{}` and `{}` is not defined'.format(self, other))
         return self._add(other)
 
@@ -48,7 +52,7 @@ class MathNode(metaclass=abc.ABCMeta):
         #     if isinstance(other, list):
         #         return [self] + other
         #     return FactorNode([self, other], [])
-        if not self.similar(other):
+        if not self.similar_mul(other):
             raise ArithmeticError('multiplying `{}` and `{}` is not defined'.format(self, other))
         return self._mul(other)
 
@@ -84,9 +88,12 @@ class NumNode(MathNode):
     def __init__(self, value):
         if value in self.const_dict:
             value = str(self.const_dict[value])
-        self.value = float(value) if '.' in str(value) else int(value)
+        self.value = float(value) if float(value) % 1 != 0 else int(value)
 
-    def similar(self, other):
+    def similar_add(self, other):
+        return isinstance(other, NumNode)
+
+    def similar_mul(self, other):
         return isinstance(other, NumNode)
 
     def __repr__(self):
@@ -102,12 +109,7 @@ class NumNode(MathNode):
         self.value += other.value
 
     def _mul(self, other):
-        if isinstance(other, NumNode):
-            self.value *= other.value
-        if other.__class__ in [int, float]:
-            self.value *= other
-        else:
-            return other * self
+        return NumNode(self.value * other.value)
 
 
 class TermNode(MathNode):
@@ -117,23 +119,37 @@ class TermNode(MathNode):
         super(TermNode, self).__init__()
         self.factors = sorted(factors)
 
-    def similar(self, other):
+    def similar_add(self, other):
         if not isinstance(other, TermNode) \
                 or len(self.factors) != len(other.factors):
             return False
         ans = True
         for s, o in zip(self.factors, other.factors):
-            ans = ans and s.similar(o)
+            ans = ans and s.similar_add(o)
         return ans
+
+    def similar_mul(self, other):
+        if isinstance(other, TermNode):
+            for x, y in zip(sorted(self.factors), sorted(other.factors)):
+                if x != y:
+                    return False
+            return True
+        return False
 
     def __repr__(self):
         return 'Term({})'.format(', '.join(map(repr, self.factors)))
 
     def __str__(self):
-        return ' + '.join(map(str, self.factors))
+        return '({})'.format(' + '.join(map(str, self.factors)))
 
+    # def _compare(self, other):
+    #     return len(self.factors) < len(other.factors)
     def _compare(self, other):
-        return len(self.factors) < len(other.factors)
+        return self._get_order() < other._get_order()
+
+    def _get_order(self):
+        k = [x.order for x in self.factors]
+        return max(k) if len(k) > 0 else -1
 
     def _add(self, other):
         self.factors.extend(other.factors)
@@ -148,7 +164,7 @@ class TermNode(MathNode):
 class FactorNode(MathNode):
     order = 5
 
-    def __init__(self, numerator: list, denominator: list, coef=(1, 1)):
+    def __init__(self, numerator: list, denominator: list=[], coef=(1, 1)):
         super(FactorNode, self).__init__()
         self.numerator = sorted(numerator)
         self.denominator = sorted(denominator)
@@ -156,10 +172,7 @@ class FactorNode(MathNode):
 
         self.update_coef()
 
-        if coef[1] % 1 != 0:    # coef[1] is not `int`
-            self.coef = coef[0] / coef[1], 1
-
-    def similar(self, other):
+    def similar_add(self, other):
         if not isinstance(other, FactorNode):
             return False
         nu, deno = self._get_dim()
@@ -168,10 +181,15 @@ class FactorNode(MathNode):
             return False
         ans = True
         for x, y in zip(nu, fnu):
-            ans = ans and x.similar(y)
+            ans = ans and x.similar_add(y)
         for x, y in zip(deno, fdeno):
-            ans = ans and x.similar(y)
+            ans = ans and x.similar_add(y)
         return ans
+
+    def similar_mul(self, other):
+        if isinstance(other, FactorNode):
+            return True
+        return False
 
     def __repr__(self):
         nu = '{}'.format(self.coef[0])
@@ -237,7 +255,14 @@ class FactorNode(MathNode):
 
         self.numerator = [x for x in self.numerator if not isinstance(x, NumNode)]
         self.denominator = [x for x in self.denominator if not isinstance(x, NumNode)]
+
+        if self.coef[1] % 1 != 0:    # coef[1] is not `int`
+            self.coef = self.coef[0] / self.coef[1], 1
         self.coef = self._intify((a, b))
+
+    def inverse(self):
+        a, b = self.coef
+        return FactorNode(self.denominator, self.numerator, (b, a))
 
     def _add(self, other):
         a, b = self.coef
@@ -249,20 +274,13 @@ class FactorNode(MathNode):
         return self
 
     def _mul(self, other):
-        if isinstance(other, TermNode):
-            return other * self
         if isinstance(other, FactorNode):
-            return self
-            # nu = self.numerator + other.numerator
-            # deno = self.denominator + other.denominator
+            nu = self.numerator + other.numerator
+            deno = self.denominator + other.denominator
+            coef = self.coef[0] * other.coef[0], self.coef[1] * other.coef[1]
+
+            return FactorNode(nu, deno, coef)
             # # TODO: simplify nu & deno
-            # return FactorNode(nu, deno)
-        if isinstance(other, NumNode):
-            self.coef = other.value * self.coef[0], self.coef[1]
-            return self
-        if isinstance(other, MathNode):
-            self.numerator.append(other)
-            return self
 
 
 class PolyNode(MathNode):
@@ -271,12 +289,19 @@ class PolyNode(MathNode):
     def __init__(self, body, dim=1):
         super(PolyNode, self).__init__()
         self.body = body
-        self.dim = float(dim) if '.' in str(dim) else int(dim)
+        self.dim = float(dim) if float(dim) % 1 != 0 else int(dim)
 
-    def similar(self, other):
+    def similar_add(self, other):
         if not isinstance(other, PolyNode):
             return False
-        return other.body.similar(self.body) and other.dim == self.dim
+        return other.body.similar_add(self.body) and other.dim == self.dim
+
+    def similar_mul(self, other):
+        if isinstance(other, PolyNode):
+            return other.body.similar_add(self.body)
+        if isinstance(other, ExpoNode):
+            return other.base.similar_add(self.body)
+        return other.similar_add(self.body)
 
     def __repr__(self):
         return 'Poly({}, {})'.format(repr(self.body), self.dim)
@@ -293,15 +318,26 @@ class PolyNode(MathNode):
         return FactorNode([self], [], (2, 1))
 
     def _mul(self, other):
-        if other.__class__ in [TermNode, FactorNode]:
-            return other * self
-        if isinstance(other, NumNode):
-            return FactorNode([self], [], (other.value, 1))
-        if self.similar(other):
-            dim = self.dim + other.dim
-            return PolyNode(self.body, dim)
-        if isinstance(other, MathNode):
-            return FactorNode([self, other], [])
+        # if other.__class__ in [TermNode, FactorNode]:
+        #     return other * self
+        # if isinstance(other, NumNode):
+        #     return FactorNode([self], [], (other.value, 1))
+        # if self.similar(other):
+        #     dim = self.dim + other.dim
+        #     return PolyNode(self.body, dim)
+        # if isinstance(other, MathNode):
+        #     return FactorNode([self, other], [])
+        if isinstance(other, PolyNode):
+            return PolyNode(self.body, self.dim + other.dim)
+        if isinstance(other, ExpoNode):
+            if other.body.similar_add(self.dim):
+                return ExpoNode(self.body, self.dim + other.body)
+            if isinstance(other.body, TermNode):
+                other.body.factors.append(FactorNode([NumNode(self.dim)], []))
+                return ExpoNode(self.body, other.body)
+            return ExpoNode(self.body, TermNode([
+                FactorNode([NumNode(self.dim)], []), FactorNode([other.body], [])]))
+        return PolyNode(self.body, self.dim + 1)
 
 
 class ExpoNode(MathNode):
@@ -312,10 +348,17 @@ class ExpoNode(MathNode):
         self.base = base
         self.body = body
 
-    def similar(self, other):
+    def similar_add(self, other):
         if not isinstance(other, ExpoNode):
             return False
         return self == other
+
+    def similar_mul(self, other):
+        if isinstance(other, ExpoNode):
+            return other.base.similar_add(self.base)
+        if isinstance(other, PolyNode):
+            return other.body.similar_add(self.base)
+        return other.similar_add(self.base)
 
     def __repr__(self):
         return 'Expo({}, {})'.format(repr(self.base), repr(self.body))
@@ -332,17 +375,35 @@ class ExpoNode(MathNode):
         return FactorNode([self], [], (2, 1))
 
     def _mul(self, other):
-        if other.__class__ in [TermNode, FactorNode]:
-            return other * self
-        if isinstance(other, NumNode):
-            return FactorNode([self], [], (other.value, 1))
+        if isinstance(other, PolyNode):
+            return ExpoNode(self.base, TermNode([
+                FactorNode([self.body], []), FactorNode([NumNode(other.dim)], [])]))
         if isinstance(other, ExpoNode):
-            if self.similar(other):
-                self.body = TermNode([self.body, other.body])
-            else:
-                self.body
-        if isinstance(other, MathNode):
-            return FactorNode([self, other], [])
+            if self.body.similar_add(other.body):
+                return ExpoNode(self.base, self.body + other.body)
+            if isinstance(self.body, TermNode):
+                self.body.factors.append(other.body)
+                return ExpoNode(self.base, self.body)
+            if isinstance(other.body, TermNode):
+                other.body.factors.append(self.body)
+                return ExpoNode(self.base, other.body)
+            return ExpoNode(self.base, TermNode([
+                FactorNode([self.body], []), FactorNode([other.body], [])]))
+        # if self.body.similar_add(other):
+        #     return ExpoNode(self.base, self.body + other)
+        return ExpoNode(self.base, TermNode([
+                FactorNode([self.body], []), FactorNode([], [])]))
+        # if other.__class__ in [TermNode, FactorNode]:
+        #     return other * self
+        # if isinstance(other, NumNode):
+        #     return FactorNode([self], [], (other.value, 1))
+        # if isinstance(other, ExpoNode):
+        #     if self.similar(other):
+        #         self.body = TermNode([self.body, other.body])
+        #     else:
+        #         self.body
+        # if isinstance(other, MathNode):
+        #     return FactorNode([self, other], [])
 
 
 class LogNode(MathNode):
@@ -356,10 +417,13 @@ class LogNode(MathNode):
         self.base = base
         self.body = body
 
-    def similar(self, other):
+    def similar_add(self, other):
         if not isinstance(other, LogNode):
             return False
         return self.base == other.base
+
+    def similar_mul(self, other):
+        return self == other
 
     def __repr__(self):
         return 'Log({}, {})'.format(repr(self.base), repr(self.body))
@@ -392,10 +456,13 @@ class TriNode(MathNode):
         self.func = func
         self.body = body
 
-    def similar(self, other):
+    def similar_add(self, other):
         if not isinstance(other, TriNode):
             return False
         return self.func == other.func
+
+    def similar_mul(self, other):
+        return self == other
 
     def __repr__(self):
         func = self.func[0].upper() + self.func[1:]
@@ -413,12 +480,14 @@ class TriNode(MathNode):
         return FactorNode([self], [], (2, 1))
 
     def _mul(self, other):
-        if other.__class__ in [TermNode, FactorNode]:
-            return other * self
-        if isinstance(other, NumNode):
-            return FactorNode([self], [], (other.value, 1))
-        if isinstance(other, MathNode):
-            return FactorNode([self, other], [])
+        return PolyNode(self, 2)
+    # def _mul(self, other):
+    #     if other.__class__ in [TermNode, FactorNode]:
+    #         return other * self
+    #     if isinstance(other, NumNode):
+    #         return FactorNode([self], [], (other.value, 1))
+    #     if isinstance(other, MathNode):
+    #         return FactorNode([self, other], [])
 
 
 class VarNode(MathNode):
@@ -428,10 +497,16 @@ class VarNode(MathNode):
         super(VarNode, self).__init__()
         self.name = name
 
-    def similar(self, other):
+    def similar_add(self, other):
         if not isinstance(other, VarNode):
             return False
         return self.name == other.name
+
+    def similar_mul(self, other):
+        if isinstance(other, PolyNode):
+            return self.similar_add(other.body)
+        if isinstance(other, VarNode):
+            return self.similar_add(other)
 
     def __repr__(self):
         return 'Var({})'.format(self.name)
@@ -443,9 +518,10 @@ class VarNode(MathNode):
         return self.name < other.name
 
     def _add(self, other):
-        # ???
-        pass
+        return FactorNode([self], [], (2, 1))
 
     def _mul(self, other):
-        pass
+        if isinstance(other, VarNode):
+            return PolyNode(self, 2)
+        return PolyNode(other.body, other.dim + 1)
 

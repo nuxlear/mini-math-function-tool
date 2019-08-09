@@ -6,6 +6,8 @@ from mathlib.core.node import *
 
 
 def negate(node: MathNode):
+    if node.__class__ in [int, float]:
+        return -node
     if isinstance(node, NumNode):
         node.value *= -1
     if isinstance(node, TermNode):
@@ -13,6 +15,25 @@ def negate(node: MathNode):
     if isinstance(node, FactorNode):
         node.coef = -node.coef[0], node.coef[1]
     return node
+
+
+def compare_dim(a: MathNode, b: MathNode):
+
+    def dim(n: MathNode):
+        if isinstance(n, ExpoNode):
+            return n.body
+        if isinstance(n, PolyNode):
+            return n.dim
+        return 1
+
+    da, db = dim(a), dim(b)
+    if da.__class__ not in [int, float] and db.__class__ not in [int, float]:
+        return None, None
+    if da.__class__ not in [int, float]:
+        return 1, db
+    if db.__class__ not in [int, float]:
+        return -1, da
+    return da - db, da - db
 
 
 class ParseNode:
@@ -105,10 +126,10 @@ class NodeBuilder:
                 if op == '/':
                     deno.append(n)
                 cur = cur.childs[2]
-            # if len(nu) == 1 and len(deno) == 0:
+            if len(nu) == 1 and len(deno) == 0:
                 # if isinstance(nu[0], VarNode):
                 #     return PolyNode(nu[0], 1)
-                # return nu[0]
+                return nu[0]
             return FactorNode(nu, deno)
 
         if node.type == 'body':
@@ -142,18 +163,87 @@ class NodeBuilder:
 class NodeSimplifier:
 
     def canonicalize(self, node: MathNode):
+        _node = node
+        # while True:
+        #     node = _node
+        #     _node = self._preprocess(self.pack(_node))
+        #     _node = self._expand(_node)
+        #     _node = self._merge_similar(self.pack(self.unpack(_node)))
+        #     _node = self._remove_zeros(_node)
+        #     self._sort(_node)
+        #     if _node == node:
+        #         break
+        # node = _node
+        _node = self.unpack(_node)
+        _node = self._preprocess(self.pack(_node))
+        _node = self._expand(_node)
+        _node = self.unpack(_node)
+        _node = self._merge_similar(self.pack(_node))
+        _node = self._remove_zeros(_node)
+        self._sort(_node)
+        node = _node
+        return node
+
+    def pack(self, node):
         if not isinstance(node, TermNode):
+            if not isinstance(node, FactorNode):
+                node = FactorNode([node], [])
             node = TermNode([node])
-        node = self._preprocess(node)
-        node = self._expand(node)
-        node = self._merge_similar(node)
-        node = self._remove_zeros(node)
-        self._sort(node)
+        return node
+
+    def unpack(self, node):
+        if isinstance(node, TermNode):
+            node.factors = [self.unpack(x) for x in node.factors]
+            if len(node.factors) == 1:
+                if isinstance(node.factors[0], VarNode):
+                    return PolyNode(node.factors[0], 1)
+                return node.factors[0]
+
+        if isinstance(node, FactorNode):
+            nu = [self.unpack(x) for x in node.numerator]
+            deno = [self.unpack(x) for x in node.denominator]
+            if len(nu) == 1 and deno == [] and node.coef == (1, 1):
+                return nu[0]
+            if nu == [] and deno == [] and node.coef != (1, 1):
+                return NumNode(node.coef[0] / node.coef[1])
+
+            nu_factors, deno_factors = [], []
+            for x in nu:
+                if isinstance(x, TermNode) and len(x.factors) == 1 \
+                        and isinstance(x.factors[0], FactorNode) \
+                        or isinstance(x, FactorNode):
+                    nu_factors.append(x)
+            for x in deno:
+                if isinstance(x, TermNode) and len(x.factors) == 1 \
+                        and isinstance(x.factors[0], FactorNode) \
+                        or isinstance(x, FactorNode):
+                    deno_factors.append(x)
+
+            nu = [x for x in nu if x not in nu_factors]
+            deno = [x for x in deno if x not in deno_factors]
+            n = FactorNode(nu, deno, node.coef)
+
+            for x in nu_factors:
+                n *= x.factors[0] if isinstance(x, TermNode) else x
+            for x in deno_factors:
+                n *= x.factors[0].inverse() if isinstance(x, TermNode) else x.inverse()
+
+            return n
+
+        if isinstance(node, PolyNode):
+            return PolyNode(self.unpack(node.body), node.dim)
+        if isinstance(node, ExpoNode):
+            return ExpoNode(self.unpack(node.base), self.unpack(node.body))
+        if isinstance(node, LogNode):
+            return LogNode(self.unpack(node.base), self.unpack(node.body))
+        if isinstance(node, TriNode):
+            return TriNode(node.func, self.unpack(node.body))
         return node
 
     def _preprocess(self, node: MathNode):
         if isinstance(node, TermNode):
-            node.factors = [self._preprocess(x) for x in node.factors]
+            node.factors = [self._preprocess(x if isinstance(x, FactorNode)
+                                             else FactorNode([x])) for x in node.factors]
             if len(node.factors) == 1:
                 k = node.factors[0]
                 if k.denominator == []:
@@ -164,60 +254,9 @@ class NodeSimplifier:
             return node
 
         if isinstance(node, FactorNode):
-            node.update_coef()
-            nu = [self._preprocess(x) for x in node.numerator]
-            deno = [self._preprocess(x) for x in node.denominator]
-
-            def invertible(_node):
-                if _node.__class__ in [PolyNode, ExpoNode]:
-                    t = _node.dim if isinstance(_node, PolyNode) else _node.body
-                    if isinstance(t, NumNode):
-                        return t.value < 0
-                    if isinstance(t, TermNode):
-                        return len(t.factors) == 1 \
-                               and t.factors[0].coef[0] / t.factors[0].coef[1] < 0
-                return False
-
-            def fractional(_node):
-                if isinstance(_node, TermNode):
-                    return len(_node.factors) == 1 and len(_node.factors[0].denominator) > 0
-                return False
-
-            nu_invs = [x for x in nu if invertible(x)]
-            deno_invs = [x for x in deno if invertible(x)]
-            deno_factor = [x for x in deno if fractional(x)]
-
-            nu = [x for x in nu if x not in nu_invs]
-            deno = [x for x in deno if x not in deno_invs + deno_factor]
-            deno_factor = [x.factors[0] for x in deno_factor]
-
-            new_deno, new_nu = [], []
-            for inv in nu_invs:
-                if isinstance(inv, PolyNode):
-                    n = PolyNode(inv.body, negate(inv.dim))
-                if isinstance(inv, ExpoNode):
-                    n = ExpoNode(inv.base, negate(inv.body))
-                new_deno.append(n)
-            for inv in deno_invs:
-                if isinstance(inv, PolyNode):
-                    n = PolyNode(inv.body, negate(inv.dim))
-                if isinstance(inv, ExpoNode):
-                    n = ExpoNode(inv.base, negate(inv.body))
-                new_nu.append(n)
-
-            nu.extend(new_nu)
-            deno.extend(new_deno)
-
-            a, b = node.coef
-            for x in deno_factor:
-                a *= x.coef[0]
-                b *= x.coef[1]
-                nu.extend(x.denominator)
-                deno.extend(x.numerator)
-            node.coef = a, b
-
-            # TODO: simplify nu & deno
-            return FactorNode(nu, deno, node.coef)
+            node = self._relocate_fraction(node)
+            node = self._abbreviate(node)
+            return node
 
         if node.__class__ in [PolyNode, ExpoNode]:
             base, dim = None, None
@@ -227,6 +266,11 @@ class NodeSimplifier:
             if isinstance(node, ExpoNode):
                 base = self._preprocess(node.base)
                 dim = self._preprocess(node.body)
+                if isinstance(dim, LogNode):
+                    dim_base = self._preprocess(dim.base)
+                    if base.similar_add(dim_base):
+                        # TODO: check domain
+                        return dim.body
 
             if isinstance(dim, NumNode):
                 if isinstance(base, NumNode):
@@ -238,16 +282,115 @@ class NodeSimplifier:
             base = self._preprocess(node.base)
             body = self._preprocess(node.body)
             if isinstance(body, ExpoNode):
-                if base.similar(body.base):
+                if base.similar_add(body.base):
                     return body.body
                 coef = body.body
                 body = body.base
                 return FactorNode([coef, LogNode(base, body)], [])
+            if isinstance(body, PolyNode):
+                if base.similar_add(body.body):
+                    return NumNode(body.dim)
+                coef = body.dim
+                body = body.body
+                return FactorNode([LogNode(base, body)], [], (coef, 1))
             return node
 
         if isinstance(node, TriNode):
             return node
         return node
+
+    def _relocate_fraction(self, node: FactorNode):
+        node.update_coef()
+        nu = [self._preprocess(x) for x in node.numerator]
+        deno = [self._preprocess(x) for x in node.denominator]
+
+        def invertible(_node):
+            if _node.__class__ in [PolyNode, ExpoNode]:
+                t = _node.dim if isinstance(_node, PolyNode) else _node.body
+                if t.__class__ in [int, float]:
+                    return t < 0
+                if isinstance(t, NumNode):
+                    return t.value < 0
+                if isinstance(t, TermNode):
+                    return len(t.factors) == 1 \
+                           and t.factors[0].coef[0] / t.factors[0].coef[1] < 0
+            return False
+
+        def fractional(_node):
+            if isinstance(_node, TermNode):
+                return len(_node.factors) == 1 and len(_node.factors[0].denominator) > 0
+            return False
+
+        nu_invs = [x for x in nu if invertible(x)]
+        deno_invs = [x for x in deno if invertible(x)]
+        deno_factor = [x for x in deno if fractional(x)]
+
+        nu = [x for x in nu if x not in nu_invs]
+        deno = [x for x in deno if x not in deno_invs + deno_factor]
+        deno_factor = [x.factors[0] for x in deno_factor]
+
+        new_deno, new_nu = [], []
+        for inv in nu_invs:
+            if isinstance(inv, PolyNode):
+                n = PolyNode(inv.body, negate(inv.dim))
+            if isinstance(inv, ExpoNode):
+                n = ExpoNode(inv.base, negate(inv.body))
+            new_deno.append(n)
+        for inv in deno_invs:
+            if isinstance(inv, PolyNode):
+                n = PolyNode(inv.body, negate(inv.dim))
+            if isinstance(inv, ExpoNode):
+                n = ExpoNode(inv.base, negate(inv.body))
+            new_nu.append(n)
+
+        nu.extend(new_nu)
+        deno.extend(new_deno)
+
+        a, b = node.coef
+        for x in deno_factor:
+            a *= x.coef[0]
+            b *= x.coef[1]
+            nu.extend(x.denominator)
+            deno.extend(x.numerator)
+        node.coef = a, b
+
+        return FactorNode(nu, deno, node.coef)
+
+    def _abbreviate(self, node: FactorNode):
+        nu, deno = [], [x for x in node.denominator]
+        for x in node.numerator:
+            q = [x for x in deno]
+            for y in q:
+                if x.similar_mul(y):
+                    deno.remove(y)
+                    k, a = compare_dim(x, y)
+                    if k is None:
+                        n = ExpoNode(x.base, TermNode([
+                            FactorNode([x.body]), FactorNode([negate(y.body)])]))
+                        nu.append(n)
+                    elif k < 0:
+                        if isinstance(y, ExpoNode):
+                            n = ExpoNode(y.base, TermNode([
+                                # FactorNode([y.body]), FactorNode([], [], (-a, 1))]))
+                                FactorNode([y.body]), NumNode(-a)]))
+                        if isinstance(y, PolyNode):
+                            n = PolyNode(y.body, -a)
+                        deno.append(n)
+                    elif k > 0:
+                        if isinstance(x, ExpoNode):
+                            n = ExpoNode(x.base, TermNode([
+                                # FactorNode([x.body]), FactorNode([], [], (-a, 1))]))
+                                FactorNode([x.body]), NumNode(-a)]))
+                        if isinstance(x, PolyNode):
+                            n = PolyNode(x.body, a)
+                        nu.append(n)
+                    elif k == 0:
+                        pass
+                    break
+            else:
+                nu.append(x)
+
+        return FactorNode(nu, deno, node.coef)
 
     def _expand(self, node):
         return node
@@ -257,35 +400,32 @@ class NodeSimplifier:
         if isinstance(node, TermNode):
             factors = self._merge_add([self._merge_similar(x) for x in node.factors])
             return TermNode(factors)
-        # if isinstance(node, FactorNode):
-            # nu = self._merge_mul([self._merge_similar(x) for x in node.numerator])
-            # deno = self._merge_mul([self._merge_similar(x) for x in node.denominator])
-            # return FactorNode(nu, deno)
+        if isinstance(node, FactorNode):
+            nu = self._merge_mul([self._merge_similar(x) for x in node.numerator])
+            deno = self._merge_mul([self._merge_similar(x) for x in node.denominator])
+            return FactorNode(nu, deno, node.coef)
+        if isinstance(node, PolyNode):
+            body = self._merge_similar(node.body)
+            return PolyNode(body, node.dim)
+        if isinstance(node, TriNode):
+            body = self._merge_similar(node.body)
+            return TriNode(node.func, body)
+        if isinstance(node, ExpoNode):
+            base = self._merge_similar(node.base)
+            body = self._merge_similar(node.body)
+            return ExpoNode(base, body)
+        if isinstance(node, LogNode):
+            base = self._merge_similar(node.base)
+            body = self._merge_similar(node.body)
+            return LogNode(base, body)
         return node
-        # if isinstance(node, TermNode):
-        #     sim_list = []
-        #     for x in node.factors:
-        #         self._merge_similar(x)
-        #         for s in sim_list:
-        #             if s.similar(x):
-        #                 s += x
-        #                 break
-        #         else:
-        #             sim_list.append(x)
-        #     node.factors = sim_list
-        # if isinstance(node, FactorNode):
-        #     sim_list = []
-        #     for x in node.numerator:
-        #         self._merge_similar(x)
-        #         for s in sim_list:
-        #             if s.similar(x):
 
     def _merge_add(self, node_list: list) -> list:
         node_list = [x for x in node_list if x is not None]
         sim_list = []
         for x in node_list:
             for s in sim_list:
-                if s.similar(x):
+                if s.similar_add(x):
                     s += x
                     break
             else:
@@ -296,12 +436,17 @@ class NodeSimplifier:
         node_list = [x for x in node_list if x is not None]
         sim_list = []
         for x in node_list:
-            q = [x for x in sim_list]
-            while len(q) > 0:
-                cur = q.pop(0)
-                if q.similar(x):
-                    pass
-        return node_list
+            q = []
+            for s in sim_list:
+                if s.similar_mul(x):
+                    q.append(s * x)
+                    break
+                else:
+                    q.append(s)
+            else:
+                q.append(x)
+            sim_list = q
+        return sim_list
 
     def _remove_zeros(self, node: MathNode):
         if isinstance(node, TermNode):

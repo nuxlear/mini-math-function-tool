@@ -16,9 +16,9 @@ class NotationTest(unittest.TestCase):
     def test_4(self):
         notation_test('log2_(2^(x+1))')
 
-    # def test_5(self):
-    #     notation_test('(x-y+z)^0.2')
-    #
+    def test_5(self):
+        notation_test('x^2*(x-1)^3*y/(y^2*(x-1))')
+
     # def test_6(self):
     #     notation_test('sin(cos(x/pi))')
     #
