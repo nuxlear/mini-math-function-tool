@@ -100,7 +100,7 @@ class NumNode(MathNode):
         return 'Num({})'.format(self.value)
 
     def __str__(self):
-        return str(self.value)
+        return str(self.value) if self.value >= 0 else '({})'.format(self.value)
 
     def _compare(self, other):
         return self.value < other.value
@@ -307,8 +307,8 @@ class PolyNode(MathNode):
         return 'Poly({}, {})'.format(repr(self.body), self.dim)
 
     def __str__(self):
-        if isinstance(self.body, TermNode):
-            return '({})^{}'.format(self.body, self.dim)
+        # if isinstance(self.body, TermNode):
+        #     return '({})^{}'.format(self.body, self.dim)
         return '{}^{}'.format(self.body, self.dim)
 
     def _compare(self, other):

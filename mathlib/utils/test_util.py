@@ -12,5 +12,8 @@ def notation_test(string):
 
     n = NodeBuilder().build(tree)
     print('Received:\n\t{}\n\t{}'.format(repr(n), n))
-    s = NodeSimplifier().canonicalize(n)
-    print('Canonicalize:\n\t{}\n\t{}'.format(repr(s), s[0]))
+    s, e = NodeSimplifier().canonicalize(n)
+    print('\nCanonicalize:\n\t{}\n\t{}'.format(repr(s), s))
+    print('\nExclusion')
+    for x in e:
+        print(x)
