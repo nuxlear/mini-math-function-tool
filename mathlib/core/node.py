@@ -181,9 +181,11 @@ class FactorNode(MathNode):
             return False
         ans = True
         for x, y in zip(nu, fnu):
-            ans = ans and x.similar_add(y)
+            # ans = ans and x.similar_add(y)
+            ans = ans and x == y
         for x, y in zip(deno, fdeno):
-            ans = ans and x.similar_add(y)
+            # ans = ans and x.similar_add(y)
+            ans = ans and x == y
         return ans
 
     def similar_mul(self, other):
@@ -256,7 +258,7 @@ class FactorNode(MathNode):
         self.numerator = [x for x in self.numerator if not isinstance(x, NumNode)]
         self.denominator = [x for x in self.denominator if not isinstance(x, NumNode)]
 
-        if self.coef[1] % 1 != 0:    # coef[1] is not `int`
+        if self.coef[0] % 1 != 0 and self.coef[1] % 1 != 0:     # (x.xx / x.xx)
             self.coef = self.coef[0] / self.coef[1], 1
         self.coef = self._intify((a, b))
 

@@ -15,9 +15,9 @@ def notation_test(string):
     print('Received:\n\t{}\n\t{}'.format(repr(n), n))
     s, e = NodeSimplifier().canonicalize(n)
     print('\nCanonicalize:\n\t{}\n\t{}'.format(repr(s), s))
-    print('\nExclusion')
+    print('\n\tExclusion')
     for x in e:
-        print(x)
+        print('\t\t{}'.format(x))
     print()
 
 
@@ -48,7 +48,7 @@ def derivation_test(string, var):
 
     dn, de = c.derivate(s, e, var)
     print('\nDerivative:\n\t{}\n\t{}'.format(repr(dn), dn))
-    print('\nExclusion')
+    print('\n\tExclusion')
     for x in de:
-        print(x)
+        print('\t\t{}'.format(x))
     print()

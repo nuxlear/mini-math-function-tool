@@ -67,7 +67,13 @@ class NodeSimplifier:
 
     def unpack(self, node):
         if isinstance(node, TermNode):
-            node.factors = [self.unpack(x) for x in node.factors]
+            factors = []
+            for x in node.factors:
+                if isinstance(x, TermNode):
+                    factors.extend(x.factors)
+                else:
+                    factors.append(x)
+            node.factors = [self.unpack(x) for x in factors]
             if len(node.factors) == 1:
                 # if isinstance(node.factors[0], VarNode):
                 #     return PolyNode(node.factors[0], 1)
@@ -160,6 +166,9 @@ class NodeSimplifier:
                 if isinstance(base, NumNode):
                     return NumNode(base.value ** dim.value)
                 return PolyNode(base, dim.value)
+            else:
+                if isinstance(base, PolyNode):
+                    return PolyNode(base.body, base.dim * dim)
             return node
 
         if isinstance(node, LogNode):
@@ -168,6 +177,8 @@ class NodeSimplifier:
             self.exclusion.append([[base, '<=', 0]])
             self.exclusion.append([[base, '==', 1]])
             self.exclusion.append([[body, '<=', 0]])
+            if body == base:
+                return NumNode(1)
             if isinstance(body, ExpoNode):
                 if base.similar_add(body.base):
                     return body.body

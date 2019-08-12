@@ -110,7 +110,7 @@ class Calculator:
         if not self._formular_of(node, var) or isinstance(node, NumNode):
             return NumNode(0)
 
-        if not isinstance(node, VarNode):
+        if isinstance(node, VarNode):
             return NumNode(1)
 
         if isinstance(node, TermNode):
@@ -121,7 +121,7 @@ class Calculator:
             # TODO: derivation of multiplication
             if len(node.numerator) == 0 and len(node.denominator) == 1:
                 d = node.denominator[0]
-                return FactorNode([self._derivate(d)], [PolyNode(d, 2)], (-1, 1))
+                return FactorNode([self._derivate(d, var)], [PolyNode(d, 2)], (-1, 1))
 
             c_nu = [x for x in node.numerator if not self._formular_of(x, var)]
             c_deno = [x for x in node.denominator if not self._formular_of(x, var)]
@@ -133,8 +133,8 @@ class Calculator:
             target = nu + deno
             factors = []
             for t in target:
-                others = [self._derivate(t)] + [x for x in target if x != t]
-                factors.append(FactorNode(others))
+                others = [self._derivate(t, var)] + [x for x in target if x != t]
+                factors.append(FactorNode(others + c_nu, c_deno, node.coef))
 
             return TermNode(factors)
 
@@ -142,14 +142,14 @@ class Calculator:
             if node.dim == 1:
                 return self._derivate(node.body, var)
             return FactorNode([PolyNode(node.body, node.dim - 1),
-                               self._derivate(node.body)], [],
+                               self._derivate(node.body, var)], [],
                               (node.dim, 1))
 
         if isinstance(node, ExpoNode):
             if not self._formular_of(node.base, var):
                 # form of a^f(x)
                 return FactorNode([node, LogNode(NumNode(math.e), node.base),
-                                   self._derivate(node.base, var)])
+                                   self._derivate(node.body, var)])
             if not self._formular_of(node.body, var):
                 # form of f(x)^a
                 return FactorNode([node.body,
@@ -158,26 +158,26 @@ class Calculator:
             # form of f(x)^g(x)
             return self._derivate(ExpoNode(NumNode(math.e),
                                            FactorNode([LogNode(NumNode(math.e), node.base),
-                                                       node.body])))
+                                                       node.body])), var)
 
         if isinstance(node, LogNode):
-            if not self._formular_of(node.base):
+            if not self._formular_of(node.base, var):
                 # form of log(a)_f(x)
-                return FactorNode([self._derivate(node.body)],
+                return FactorNode([self._derivate(node.body, var)],
                                   [LogNode(NumNode(math.e), node.base),
                                    node.body])
             return self._derivate(FactorNode([LogNode(NumNode(math.e), node.body)],
-                                             [LogNode(NumNode(math.e), node.base)]))
+                                             [LogNode(NumNode(math.e), node.base)]), var)
 
         if isinstance(node, TriNode):
             if node.func == 'sin':
                 return FactorNode([TriNode('cos', node.body),
-                                   self._derivate(node.body)])
+                                   self._derivate(node.body, var)])
             if node.func == 'cos':
                 return FactorNode([TriNode('sin', node.body),
-                                   self._derivate(node.body)], [], (-1, 1))
+                                   self._derivate(node.body, var)], [], (-1, 1))
             if node.func == 'tan':
-                return FactorNode([self._derivate(node.body)],
+                return FactorNode([self._derivate(node.body, var)],
                                   [PolyNode(TriNode('cos', node.body), 2)])
 
     def _formular_of(self, node: MathNode, var: str):
