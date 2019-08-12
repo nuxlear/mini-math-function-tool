@@ -3,6 +3,7 @@ from mathlib.io.parser import Parser
 from mathlib.core.builder import *
 from mathlib.core.simplifier import *
 from mathlib.core.calculator import *
+from mathlib.ui.plot import *
 
 
 def notation_test(string):
@@ -52,3 +53,15 @@ def derivation_test(string, var):
     for x in de:
         print('\t\t{}'.format(x))
     print()
+
+
+def plot_test(string, var, lim, **kwargs):
+    l = Lexer('../mathlib/io/lexer_grammar')
+    p = Parser('../mathlib/io/parser_grammar', l)
+
+    tree = p.parse(l.stream(string))
+
+    n = NodeBuilder().build(tree)
+    s, e = NodeSimplifier().canonicalize(n)
+    p = Plotter()
+    p.plot(s, e, var, lim, **kwargs)

@@ -15,71 +15,76 @@ op_dict = {
 
 class Calculator:
 
+    def __init__(self, simplifier=None):
+        self.simplifier = simplifier
+        if simplifier is None:
+            self.simplifier = NodeSimplifier()
+
     def eval(self, node: MathNode, exclusion: list, **kwargs):
         for x in exclusion:
             ans = True
             for e in x:
                 if len(e) == 3:
                     a, cmp, b = e
-                    a = self.eval_node(a, **kwargs)
+                    a = self._eval_node(a, **kwargs)
                 if len(e) == 5:
                     a, op, m, cmp, b = e
-                    a = self.eval_node(a, **kwargs)
-                    m = self.eval_node(m, **kwargs)
+                    a = self._eval_node(a, **kwargs)
+                    m = self._eval_node(m, **kwargs)
                     a = op_dict[op](a, m)
 
                 ans = ans and op_dict[cmp](a, b)
             if ans:
                 return math.nan
 
-        result = self.eval_node(node, **kwargs)
+        result = self._eval_node(node, **kwargs)
         if result == 0:
             return 0.
         return result
 
-    def eval_node(self, node: MathNode, **kwargs):
+    def _eval_node(self, node: MathNode, **kwargs):
         if node.__class__ in [int, float]:
             return node
         if isinstance(node, TermNode):
             ans = 0
             for x in node.factors:
-                ans += self.eval_node(x, **kwargs)
+                ans += self._eval_node(x, **kwargs)
             return ans
 
         if isinstance(node, FactorNode):
             nu, deno = node.coef[0], node.coef[1]
             for x in node.numerator:
-                nu *= self.eval_node(x, **kwargs)
+                nu *= self._eval_node(x, **kwargs)
             for x in node.denominator:
-                deno *= self.eval_node(x, **kwargs)
+                deno *= self._eval_node(x, **kwargs)
             if deno == 0:
                 # raise ZeroDivisionError('in {}'.format(node))
                 return math.nan
             return nu / deno
 
         if isinstance(node, PolyNode):
-            body = self.eval_node(node.body, **kwargs)
+            body = self._eval_node(node.body, **kwargs)
             if body < 0 and node.dim % 1 != 0:
                 return math.nan
             return body ** node.dim
 
         if isinstance(node, ExpoNode):
-            base = self.eval_node(node.base, **kwargs)
-            body = self.eval_node(node.body, **kwargs)
+            base = self._eval_node(node.base, **kwargs)
+            body = self._eval_node(node.body, **kwargs)
             if base < 0 and body % 1 != 0:
                 return math.nan
             return base ** body
 
         if isinstance(node, LogNode):
-            body = self.eval_node(node.body, **kwargs)
-            base = self.eval_node(node.base, **kwargs)
+            body = self._eval_node(node.body, **kwargs)
+            base = self._eval_node(node.base, **kwargs)
             if body <= 0 or base == 1 or base <= 0:
                 return math.nan
             return math.log(body, base)
 
         if isinstance(node, TriNode):
             func_dict = {'sin': math.sin, 'cos': math.cos, 'tan': math.tan}
-            body = self.eval_node(node.body, **kwargs)
+            body = self._eval_node(node.body, **kwargs)
             if node.func == 'tan' and body % (2*math.pi) == math.pi / 2:
                 return math.nan
             return func_dict[node.func](body)
@@ -94,7 +99,7 @@ class Calculator:
 
     def derivate(self, node: MathNode, exclusion: list, var: str):
         n = self._derivate(node, var)
-        n, _ex = NodeSimplifier().canonicalize(n)
+        n, _ex = self.simplifier.canonicalize(n)
 
         exclusion += _ex
 
@@ -183,4 +188,9 @@ class Calculator:
     def _formular_of(self, node: MathNode, var: str):
         return var in str(node)
 
+    def continuous(self, node: MathNode, exclusion: list, **kwargs):
+        value = self.eval(node, exclusion, **kwargs)
+        return value is not math.nan
 
+    # def is_undefined(self, node: MathNode, **kwargs):
+    #     pass

@@ -10,6 +10,7 @@ class NotationTest(unittest.TestCase):
         calculation_test(s, x=3)
         calculation_test(s, x=2)
         derivation_test(s, 'x')
+        plot_test(s, 'x', (-5, 5))
 
     def test_2(self):
         s = '1/(1/x)'
@@ -40,9 +41,14 @@ class NotationTest(unittest.TestCase):
         derivation_test(s, 'x')
         derivation_test(s, 'y')
 
-    # def test_6(self):
-    #     notation_test('sin(cos(x/pi))')
-    #
+    def test_6(self):
+        s = '1/sin(x)'
+        notation_test(s)
+        calculation_test(s, x=math.pi/2)
+        calculation_test(s, x=0)
+        derivation_test(s, 'x')
+        plot_test(s, 'x', (-10, 10))
+
     # def test_7(self):
     #     notation_test('x^(-3.5) + 1/x^3.5')
     #
