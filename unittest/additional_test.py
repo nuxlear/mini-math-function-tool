@@ -5,19 +5,34 @@ from mathlib.utils.test_util import *
 
 class NotationTest(unittest.TestCase):
     def test_1(self):
-        notation_test('(x-1)/(x-2)')
+        s = '(x-1)/(x-2)'
+        notation_test(s)
+        calculation_test(s, x=3)
+        calculation_test(s, x=2)
 
     def test_2(self):
-        notation_test('1/(1/x)')
+        s = '1/(1/x)'
+        notation_test(s)
+        calculation_test(s, x=0)
 
     def test_3(self):
-        notation_test('1/(1/(1/(3+x)))')
+        s = '1/(1/(1/(3+x)))'
+        notation_test(s)
+        calculation_test(s, x=1)
+        calculation_test(s, x=-3)
 
     def test_4(self):
-        notation_test('log2_(2^(x+1))')
+        s = 'log2_(2^(x+1))'
+        notation_test(s)
+        calculation_test(s, x=0)
+        calculation_test(s, x=-10)
 
     def test_5(self):
-        notation_test('x^2*(x-1)^3*y/(y^2*(x-1))')
+        s = 'x^2*(x-1)^3*y/(y^2*(x-1))'
+        notation_test(s)
+        calculation_test(s, x=2, y=3)
+        calculation_test(s, x=0, y=0)
+        calculation_test(s, x=1, y=1)
 
     # def test_6(self):
     #     notation_test('sin(cos(x/pi))')

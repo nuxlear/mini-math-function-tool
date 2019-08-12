@@ -1,6 +1,32 @@
 from mathlib.core.node import *
 from mathlib.core.node_util import *
-from mathlib.core.calculator import is_identity
+
+
+def is_identity(equation) -> bool:
+
+    a, op, m, cmp, b = [None] * 5
+    if len(equation) == 3:
+        a, cmp, b = equation
+        if isinstance(a, NumNode):
+            a = a.value
+    if len(equation) == 5:
+        a, op, m, cmp, b = equation
+        if isinstance(m, NumNode):
+            m = m.value
+
+    if isinstance(a, PolyNode):
+        if a.dim % 2 == 0 and b == 0:
+            return cmp == '>='
+
+    return a.__class__ in [int, float] and b.__class__ in [int, float]
+
+    # if a.__class__ in [int, float]:
+    #     if m.__class__ in [int, float]:
+    #         a = op_dict[op](a, m)
+    #     if b.__class__ in [int, float]:
+    #         # return op_dict[cmp](a, b)
+    #         # if op_dict[cmp](a, b) is True -> invalid equation
+    # return False
 
 
 class NodeSimplifier:
@@ -222,7 +248,10 @@ class NodeSimplifier:
     def _abbreviate(self, node: FactorNode):
         nu, deno = [], [x for x in node.denominator]
         for x in deno:
-            self.exclusion.append([[x, '==', 0]])
+            n = x
+            if isinstance(x, PolyNode):
+                n = x.body
+            self.exclusion.append([[n, '==', 0]])
 
         for x in node.numerator:
             q = [x for x in deno]
@@ -354,7 +383,7 @@ class NodeSimplifier:
             for _e in e:
                 if not is_identity(_e):
                     equations.append(_e)
-            if len(equations) > 0:
+            if len(equations) == len(e):
                 exclusion.append(equations)
 
         for e in exclusion:
