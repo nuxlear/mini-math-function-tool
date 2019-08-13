@@ -33,7 +33,6 @@ class NotationTest(unittest.TestCase):
         s = '(x-y+z)^0.2'
         notation_test(s)
         calculation_test(s, x=1, y=2, z=10)
-        # TODO: fix parse bug
         calculation_test(s, x=1, y=2, z=-1)
         derivation_test(s, 'x')
         derivation_test(s, 'y')

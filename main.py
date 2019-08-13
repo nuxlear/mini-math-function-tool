@@ -9,6 +9,7 @@ def main():
     simplifier = mathlib.NodeSimplifier()
     calculator = mathlib.Calculator(simplifier)
     plotter = mathlib.Plotter()
+    latex = mathlib.LaTeXGenerator()
 
     print(mathlib.manual())
     while True:
@@ -22,10 +23,12 @@ def main():
 
         print('Representation: {}'.format(tree))
         plotter.plot(tree, exclusion, 'x', (-10, 10))
+        print(' - LaTeX: {}'.format(latex.generate(tree)))
 
         deriv, de_ex = calculator.derivate(tree, exclusion, 'x')
         print('Derivative: {}'.format(deriv))
         plotter.plot(deriv, de_ex, 'x', (-10, 10))
+        print(' - LaTeX: {}'.format(latex.generate(deriv)))
 
     print('Goodbye!')
 

@@ -1,5 +1,4 @@
-from mathlib.core.node import *
-from mathlib.core.node_util import *
+from mathlib.utils.node_util import *
 
 
 def is_identity(equation) -> bool:
