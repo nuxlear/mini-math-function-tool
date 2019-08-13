@@ -1,4 +1,6 @@
 from mathlib.core.calculator import *
+from mathlib.io.latex import *
+
 import matplotlib.pyplot as plt
 import numpy as np
 

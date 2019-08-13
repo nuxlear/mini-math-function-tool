@@ -1,0 +1,20 @@
+{% extends "layout.html" %}
+{% block content %}
+    <div class="jumbo">
+        <div class="input-box">
+            <form action="/post" method="post">
+                <h4>Enter notation: </h4>
+                <input type="text" name="notation" value="">
+                <input type="submit" value="go!">
+            </form>
+        </div>
+        {% if result %}
+            {% for key, value in result.items() %}
+                <div class="sub-title">
+                    <h3>{{ key }}</h3>
+                    <p>{{ value }}</p>
+                </div>
+            {% endfor %}
+        {% endif %}
+    </div>
+{% endblock %}

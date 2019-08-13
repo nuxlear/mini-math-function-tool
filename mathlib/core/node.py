@@ -64,22 +64,6 @@ class MathNode(metaclass=abc.ABCMeta):
     def _mul(self, other) -> None:
         pass
 
-    # @abc.abstractmethod
-    # def __sub__(self, other):
-    #     pass
-    #
-    # @abc.abstractmethod
-    # def __mul__(self, other):
-    #     pass
-    #
-    # @abc.abstractmethod
-    # def __truediv__(self, other):
-    #     pass
-    #
-    # @abc.abstractmethod
-    # def __neg__(self):
-    #     pass
-
 
 class NumNode(MathNode):
     order = 7

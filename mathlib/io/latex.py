@@ -33,19 +33,24 @@ class LaTeXGenerator:
             deno = '{}'.format(''.join(map(self._generate, node.denominator)))
 
             if deno == '':
-                s += '{{{} \\over {}}}'.format(c_nu, c_deno)
-                if nu != '':
-                    s += '\\dot{{{}}}'.format(nu)
-            else:
-                if c_nu != '1':
-                    nu = c_nu + nu
                 if c_deno != '1':
-                    deno = c_deno + deno
+                    s += '{{{{{}}} \\over {{{}}}}}'.format(c_nu, c_deno)
+                else:
+                    if c_nu != '1' or nu == '':
+                        s += '{{{}}}'.format(c_nu)
+
+                if nu != '':
+                    s += '{{{}}}'.format(nu)
+            else:
+                if c_nu != '1' or nu == '':
+                    nu = '{{{}}}{}'.format(c_nu, nu)
+                if c_deno != '1':
+                    deno = '{{{}}}{}'.format(c_deno, deno)
                 s += '{{{} \\over {}}}'.format(nu, deno)
             return s
 
         if isinstance(node, PolyNode):
-            return '{{{}}}^{}'.format(self._generate(node.body), node.dim)
+            return '{{{}}}^{{{}}}'.format(self._generate(node.body), node.dim)
 
         if isinstance(node, ExpoNode):
             return '{{{}}}^{{{}}}'.format(self._generate(node.base),
@@ -69,7 +74,7 @@ class LaTeXGenerator:
             return '\\{} {{{}}}'.format(node.func, self._generate(node.body))
 
         if isinstance(node, NumNode):
-            return '{}'.format(node.value)
+            return '{{{}}}'.format(node.value)
 
         if isinstance(node, VarNode):
             return node.name
