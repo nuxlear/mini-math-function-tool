@@ -35,16 +35,7 @@ class NodeSimplifier:
 
     def canonicalize(self, node: MathNode):
         _node = node
-        # while True:
-        #     node = _node
-        #     _node = self._preprocess(self.pack(_node))
-        #     _node = self._expand(_node)
-        #     _node = self._merge_similar(self.pack(self.unpack(_node)))
-        #     _node = self._remove_zeros(_node)
-        #     self._sort(_node)
-        #     if _node == node:
-        #         break
-        # node = _node
+        self.exclusion = []
         _node = self.unpack(_node)
         _node = self._preprocess(self.pack(_node))
         _node = self._expand(_node)

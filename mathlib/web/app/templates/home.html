@@ -2,17 +2,37 @@
 {% block content %}
     <div class="jumbo">
         <div class="input-box">
-            <form action="/post" method="post">
-                <h4>Enter notation: </h4>
-                <input type="text" name="notation" value="">
-                <input type="submit" value="go!">
+            <form name="form" action="/post" method="post" onsubmit="return check_empty()">
+                <div class="notation-box">
+                    <h4 id="main_text">Enter notation: </h4>
+                    <input class="notation-input" type="text" name="notation" value="">
+                    <input class="calc-button" type="submit" value="Go!">
+                </div>
+                <div class="option-box">
+                    <span>low: </span><input class="small-number" type="number" name="low" value="{{ lim[0] }}">
+                    <span>high: </span><input class="small-number" type="number" name="high" value="{{ lim[1] }}">
+                </div>
             </form>
+            <script>
+                function check_empty() {
+                    let notation = document.forms["form"]["notation"].value;
+                    if (notation == null || notation == "") {
+                        document.getElementById("main_text").textContent
+                            = "Notation must not be empty.";
+                        return false;
+                    }
+                }
+            </script>
         </div>
         {% if result %}
             {% for key, value in result.items() %}
                 <div class="sub-title">
                     <h3>{{ key }}</h3>
-                    <p>{{ value }}</p>
+                    {% if key == 'Graph' %}
+                        <img src="{{ url_for('static', filename='image/' + value) }}?ver={{ timestamp }}", alt="Cannot load Figure">
+                    {% else %}
+                        <p>{{ value }}</p>
+                    {% endif %}
                 </div>
             {% endfor %}
         {% endif %}

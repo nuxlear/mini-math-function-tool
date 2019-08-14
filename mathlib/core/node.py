@@ -97,7 +97,7 @@ class NumNode(MathNode):
 
 
 class TermNode(MathNode):
-    order = -1
+    order = 0
 
     def __init__(self, factors: list):
         super(TermNode, self).__init__()

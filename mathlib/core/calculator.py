@@ -123,10 +123,9 @@ class Calculator:
             return TermNode(factors)
 
         if isinstance(node, FactorNode):
-            # TODO: derivation of multiplication
             if len(node.numerator) == 0 and len(node.denominator) == 1:
                 d = node.denominator[0]
-                return FactorNode([self._derivate(d, var)], [PolyNode(d, 2)], (-1, 1))
+                return FactorNode([self._derivate(d, var)], [PolyNode(d, 2)], (-node.coef[0], node.coef[1]))
 
             c_nu = [x for x in node.numerator if not self._formular_of(x, var)]
             c_deno = [x for x in node.denominator if not self._formular_of(x, var)]
