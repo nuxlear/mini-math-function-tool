@@ -10,22 +10,6 @@ math_app = Flask(__name__)
 math_app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 
 
-app_root = os.path.dirname(__file__)
-image_dir = os.path.join(app_root, 'static', 'image')
-
-default_lexer_grammar = 'mathlib/io/lexer_grammar'
-default_parser_grammar = 'mathlib/io/parser_grammar'
-
-lexer = Lexer(default_lexer_grammar)
-parser = Parser(default_parser_grammar, lexer)
-
-builder = NodeBuilder()
-simplifier = NodeSimplifier()
-calculator = Calculator(simplifier)
-plotter = Plotter()
-latex = LaTeXGenerator()
-
-
 @math_app.route('/')
 def home():
     timestamp = str(datetime.now().timestamp())
@@ -62,5 +46,20 @@ def get_notation():
 
 
 if __name__ == '__main__':
+    app_root = os.path.dirname(__file__)
+    image_dir = os.path.join(app_root, 'static', 'image')
+
+    default_lexer_grammar = 'mathlib/io/lexer_grammar'
+    default_parser_grammar = 'mathlib/io/parser_grammar'
+
+    lexer = Lexer(default_lexer_grammar)
+    parser = Parser(default_parser_grammar, lexer)
+
+    builder = NodeBuilder()
+    simplifier = NodeSimplifier()
+    calculator = Calculator(simplifier)
+    plotter = Plotter()
+    latex = LaTeXGenerator()
+
     math_app.run(debug=True)
 

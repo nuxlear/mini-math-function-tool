@@ -6,9 +6,6 @@ import functools
 @functools.total_ordering
 class MathNode(metaclass=abc.ABCMeta):
     order = None
-    #
-    # def __init__(self):
-    #     self.parent = None
 
     @abc.abstractmethod
     def similar_add(self, other) -> bool:
@@ -63,6 +60,32 @@ class MathNode(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def _mul(self, other) -> None:
         pass
+
+
+# from mathlib.utils.node_util import is_negative, negate
+def negate(node: MathNode):
+    if node.__class__ in [int, float]:
+        return -node
+    elif isinstance(node, NumNode):
+        # node.value *= -1
+        return NumNode(node.value * -1)
+    elif isinstance(node, TermNode):
+        # node.factors = [negate(f) for f in node.factors]
+        return TermNode([negate(f) for f in node.factors])
+    elif isinstance(node, FactorNode):
+        # node.coef = -node.coef[0], node.coef[1]
+        return FactorNode(node.numerator, node.denominator,
+                          (-node.coef[0], node.coef[1]))
+    else:
+        return FactorNode([node], [], (-1, 1))
+
+
+def is_negative(node: MathNode):
+    if isinstance(node, FactorNode):
+        return node.coef[0] / node.coef[1] < 0
+    if isinstance(node, NumNode):
+        return node.value < 0
+    return False
 
 
 class NumNode(MathNode):
@@ -124,7 +147,16 @@ class TermNode(MathNode):
         return 'Term({})'.format(', '.join(map(repr, self.factors)))
 
     def __str__(self):
-        return '({})'.format(' + '.join(map(str, self.factors)))
+        # return '({})'.format(' + '.join(map(str, self.factors)))
+        if len(self.factors) == 0:
+            return ''
+        s = str(self.factors[0])
+        for x in self.factors[1:]:
+            if is_negative(x):
+                s += ' - {}'.format(negate(x))
+            else:
+                s += ' + {}'.format(x)
+        return '({})'.format(s)
 
     # def _compare(self, other):
     #     return len(self.factors) < len(other.factors)
@@ -191,25 +223,55 @@ class FactorNode(MathNode):
         return 'Factor({})'.format(s)
 
     def __str__(self):
-        nu, deno = '', ''
-        if len(self.numerator) > 0:
-            nu = '*'.join(map(str, self.numerator))
-        if len(self.denominator) > 0:
-            deno = '*'.join(map(str, self.denominator))
+        # nu, deno = '', ''
+        # if len(self.numerator) > 0:
+        #     nu = '*'.join(map(str, self.numerator))
+        # if len(self.denominator) > 0:
+        #     deno = '*'.join(map(str, self.denominator))
+        #
+        # if nu == '':
+        #     nu = str(self.coef[0])
+        # elif self.coef[0] != 1:
+        #     nu = '{}*{}'.format(self.coef[0], nu)
+        #
+        # if deno == '' and self.coef[1] != 1:
+        #     nu += ' / {}'.format(self.coef[1])
+        # elif deno != '':
+        #     if self.coef[1] != 1:
+        #         deno = '{}*{}'.format(self.coef[1], deno)
+        #     nu += ' / {}'.format(deno)
+        #
+        # return '({})'.format(nu)
+        s = ''
+        if self.coef[0] / self.coef[1] < 0:
+            s += '-'
+        c_nu = '{}'.format(abs(self.coef[0]))
+        c_deno = '{}'.format(abs(self.coef[1]))
 
-        if nu == '':
-            nu = str(self.coef[0])
-        elif self.coef[0] != 1:
-            nu = '{}*{}'.format(self.coef[0], nu)
+        nu = '{}'.format('*'.join(map(str, self.numerator)))
+        deno = '{}'.format('*'.join(map(str, self.denominator)))
 
-        if deno == '' and self.coef[1] != 1:
-            nu += ' / {}'.format(self.coef[1])
-        elif deno != '':
-            if self.coef[1] != 1:
-                deno = '{}*{}'.format(self.coef[1], deno)
-            nu += ' / {}'.format(deno)
+        if deno == '':
+            if c_deno != '1':
+                s += '{} / {}'.format(c_nu, c_deno)
+            else:
+                if c_nu != '1' or nu == '':
+                    s += '{}'.format(c_nu)
 
-        return '({})'.format(nu)
+            if nu != '':
+                if c_nu != '1':
+                    s += '*'
+                s += '{}'.format(nu)
+        else:
+            if c_nu != '1' or nu == '':
+                _nu = c_nu
+                if nu != '':
+                    _nu += '*{}'.format(nu)
+                nu = _nu
+            if c_deno != '1':
+                deno = '{}*{}'.format(c_deno, deno)
+            s += '{}/({})'.format(nu, deno)
+        return s
 
     def _compare(self, other):
         return self._get_order() < other._get_order()
