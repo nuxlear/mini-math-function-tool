@@ -1,20 +1,30 @@
 import mathlib
 
 
-def main(gui=False):
+def main(lexer=None, parser=None, builder=None, simplifier=None, calculator=None,
+         plotter=None, latex=None, gui=False):
+    lexer = lexer or mathlib.Lexer(mathlib.default_lexer_grammar)
+    parser = parser or mathlib.Parser(mathlib.default_parser_grammar, lexer)
+
+    builder = builder or mathlib.NodeBuilder()
+    simplifier = simplifier or mathlib.NodeSimplifier()
+    calculator = calculator or mathlib.Calculator(simplifier)
+    plotter = plotter or mathlib.Plotter()
+    latex = latex or mathlib.LaTeXGenerator()
+
     if gui:
+        math_app = mathlib.math_app
+        math_app.config['lexer'] = lexer
+        math_app.config['parser'] = parser
+        math_app.config['builder'] = builder
+        math_app.config['simplifier'] = simplifier
+        math_app.config['calculator'] = calculator
+        math_app.config['plotter'] = plotter
+        math_app.config['latex'] = latex
+
         mathlib.math_app.run()
 
     else:
-        lexer = mathlib.Lexer(mathlib.default_lexer_grammar)
-        parser = mathlib.Parser(mathlib.default_parser_grammar, lexer)
-
-        builder = mathlib.NodeBuilder()
-        simplifier = mathlib.NodeSimplifier()
-        calculator = mathlib.Calculator(simplifier)
-        plotter = mathlib.Plotter()
-        latex = mathlib.LaTeXGenerator()
-
         print(mathlib.manual())
         while True:
             s = input('>>> ')
@@ -40,3 +50,4 @@ def main(gui=False):
 if __name__ == "__main__":
     main(gui=True)
     # main()
+    # lexer, parser, builder, simplifier, calculator, plotter, latex

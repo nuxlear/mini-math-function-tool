@@ -64,6 +64,7 @@ class MathNode(metaclass=abc.ABCMeta):
 
 # from mathlib.utils.node_util import is_negative, negate
 def negate(node: MathNode):
+    # TODO: replace this method into __ne__() method in each class
     if node.__class__ in [int, float]:
         return -node
     elif isinstance(node, NumNode):
@@ -141,6 +142,8 @@ class TermNode(MathNode):
                 if x != y:
                     return False
             return True
+        if isinstance(other, PolyNode):
+            return self.similar_mul(other.body)
         return False
 
     def __repr__(self):
@@ -156,7 +159,8 @@ class TermNode(MathNode):
                 s += ' - {}'.format(negate(x))
             else:
                 s += ' + {}'.format(x)
-        return '({})'.format(s)
+        # return '({})'.format(s)
+        return '{}'.format(s)
 
     # def _compare(self, other):
     #     return len(self.factors) < len(other.factors)
@@ -248,8 +252,13 @@ class FactorNode(MathNode):
         c_nu = '{}'.format(abs(self.coef[0]))
         c_deno = '{}'.format(abs(self.coef[1]))
 
-        nu = '{}'.format('*'.join(map(str, self.numerator)))
-        deno = '{}'.format('*'.join(map(str, self.denominator)))
+        def _pack_term(node):
+            if isinstance(node, TermNode):
+                return '({})'.format(node)
+            return str(node)
+
+        nu = '{}'.format('*'.join(map(_pack_term, self.numerator)))
+        deno = '{}'.format('*'.join(map(_pack_term, self.denominator)))
 
         if deno == '':
             if c_deno != '1':
@@ -270,7 +279,10 @@ class FactorNode(MathNode):
                 nu = _nu
             if c_deno != '1':
                 deno = '{}*{}'.format(c_deno, deno)
-            s += '{}/({})'.format(nu, deno)
+            if len(self.denominator) > 1 \
+                    or c_deno != '1' and len(self.denominator) > 0:
+                deno = '({})'.format(deno)
+            s += '{}/{}'.format(nu, deno)
         return s
 
     def _compare(self, other):
@@ -357,7 +369,10 @@ class PolyNode(MathNode):
     def __str__(self):
         # if isinstance(self.body, TermNode):
         #     return '({})^{}'.format(self.body, self.dim)
-        return '{}^{}'.format(self.body, self.dim)
+        body = str(self.body)
+        if self.body.__class__ not in [VarNode, NumNode]:
+            body = '({})'.format(body)
+        return '{}^{}'.format(body, self.dim)
 
     def _compare(self, other):
         return self.dim > other.dim
@@ -412,8 +427,12 @@ class ExpoNode(MathNode):
         return 'Expo({}, {})'.format(repr(self.base), repr(self.body))
 
     def __str__(self):
-        base = '({})'.format(self.base) if isinstance(self.base, TermNode) else str(self.base)
-        body = '({})'.format(self.body) if isinstance(self.body, TermNode) else str(self.body)
+        base = str(self.base)
+        body = str(self.body)
+        if self.base.__class__ not in [VarNode, NumNode]:
+            base = '({})'.format(base)
+        if self.body.__class__ not in [VarNode, NumNode]:
+            body = '({})'.format(body)
         return '{}^{}'.format(base, body)
 
     def _compare(self, other):
@@ -477,7 +496,7 @@ class LogNode(MathNode):
         return 'Log({}, {})'.format(repr(self.base), repr(self.body))
 
     def __str__(self):
-        base = '({})'.format(self.base) if isinstance(self.base, TermNode) else str(self.base)
+        base = '({})'.format(self.base) if self.base.__class__ not in [VarNode, NumNode] else str(self.base)
         # body = '({})'.format(self.body) if isinstance(self.body, TermNode) else str(self.body)
         return 'log{}_({})'.format(base, self.body)
 

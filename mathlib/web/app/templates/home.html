@@ -4,13 +4,20 @@
         <div class="input-box">
             <form name="form" action="/post" method="post" onsubmit="return check_empty()">
                 <div class="notation-box">
+                    {% if error_msg %}
+                    <h4>{{ error_msg }}</h4>
+                    {% endif %}
                     <h4 id="main_text">Enter notation: </h4>
-                    <input class="notation-input" type="text" name="notation" value="">
+                    <input class="notation-input" type="text" name="notation" value="{% if notation %}{{ notation }}{% endif %}">
                     <input class="calc-button" type="submit" value="Go!">
                 </div>
                 <div class="option-box">
                     <span>low: </span><input class="small-number" type="number" name="low" value="{{ lim[0] }}">
-                    <span>high: </span><input class="small-number" type="number" name="high" value="{{ lim[1] }}">
+                    <span style="margin-left: 10px;">high: </span><input class="small-number" type="number" name="high" value="{{ lim[1] }}">
+                    <br><br>
+                    <span>variable: </span><input class="small-number" type="text" name="variable" value="{% if variable %}{{ variable }}{% else %}x{% endif %}">
+                    <br><br>
+                    <span>conditions (x=3, y=5, ...) </span><input class="condition-input" type="text" name="conditions" value="{% if conditions %}{{ conditions }}{% endif %}">
                 </div>
             </form>
             <script>
@@ -30,6 +37,8 @@
                     <h3>{{ key }}</h3>
                     {% if key == 'Graph' %}
                         <img src="{{ url_for('static', filename='image/' + value) }}?ver={{ timestamp }}", alt="Cannot load Figure">
+                    {% elif key == 'string' or key == 'string (derivative)' %}
+                        <h4>{{ value }}</h4>
                     {% else %}
                         <p>{{ value }}</p>
                     {% endif %}

@@ -8,8 +8,8 @@ class LaTeXGenerator:
         s = self._generate(node)
         if s == '':
             return '0'
-        if s[0] == '(' and s[-1] == ')':
-            return s[1:-1]
+        # if s[0] == '(' and s[-1] == ')':
+        #     return s[1:-1]
         return s
 
     def _generate(self, node: MathNode):
@@ -22,7 +22,7 @@ class LaTeXGenerator:
                     s += ' - {}'.format(self._generate(negate(x)))
                 else:
                     s += ' + {}'.format(self._generate(x))
-            return '({})'.format(s)
+            return '{}'.format(s)
 
         if isinstance(node, FactorNode):
             s = ''
@@ -31,8 +31,13 @@ class LaTeXGenerator:
             c_nu = '{}'.format(abs(node.coef[0]))
             c_deno = '{}'.format(abs(node.coef[1]))
 
-            nu = '{}'.format(''.join(map(self._generate, node.numerator)))
-            deno = '{}'.format(''.join(map(self._generate, node.denominator)))
+            def _pack_term(node):
+                if isinstance(node, TermNode):
+                    return '({})'.format(self.generate(node))
+                return self._generate(node)
+
+            nu = '{}'.format(''.join(map(_pack_term, node.numerator)))
+            deno = '{}'.format(''.join(map(_pack_term, node.denominator)))
 
             if deno == '':
                 if c_deno != '1':
@@ -52,11 +57,19 @@ class LaTeXGenerator:
             return s
 
         if isinstance(node, PolyNode):
-            return '{{{}}}^{{{}}}'.format(self._generate(node.body), node.dim)
+            body = '{{{}}}'.format(self._generate(node.body))
+            if node.body.__class__ not in [VarNode, NumNode]:
+                body = '({})'.format(body)
+            return '{{{}}}^{{{}}}'.format(body, node.dim)
 
         if isinstance(node, ExpoNode):
-            return '{{{}}}^{{{}}}'.format(self._generate(node.base),
-                                          self._generate(node.body))
+            base = '{{{}}}'.format(self._generate(node.base))
+            body = '{{{}}}'.format(self._generate(node.body))
+            if node.base.__class__ not in [VarNode, NumNode]:
+                base = '({})'.format(base)
+            if node.body.__class__ not in [VarNode, NumNode]:
+                body = '({})'.format(body)
+            return '{{{}}}^{{{}}}'.format(base, body)
 
         if isinstance(node, LogNode):
             s = '\\'
@@ -69,11 +82,17 @@ class LaTeXGenerator:
                     s += 'log_{{{}}}'.format(node.base.value)
             else:
                 s += 'log_{{{}}}'.format(self._generate(node.base))
-            s += ' {{{}}}'.format(self._generate(node.body))
+            body = ' {{{}}}'.format(self._generate(node.body))
+            if node.body.__class__ not in [VarNode, NumNode]:
+                body = '({})'.format(body)
+            s += body
             return s
 
         if isinstance(node, TriNode):
-            return '\\{} {{{}}}'.format(node.func, self._generate(node.body))
+            body = '{{{}}}'.format(self._generate(node.body))
+            if node.body.__class__ not in [VarNode, NumNode]:
+                body = '({})'.format(body)
+            return '\\{} {}'.format(node.func, body)
 
         if isinstance(node, NumNode):
             return '{{{}}}'.format(node.value)
