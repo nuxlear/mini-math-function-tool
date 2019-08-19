@@ -9,6 +9,7 @@ op_dict = {
     '<': operator.lt, '>': operator.gt,
     '==': operator.eq, '!=': operator.ne,
     '<=': operator.le, '>=': operator.ge,
+    'is': lambda x, t: isinstance(x, t),
     'not': lambda x, t: not isinstance(x, t),
 }
 
@@ -33,6 +34,8 @@ class Calculator:
                     m = self._eval_node(m, **kwargs)
                     a = op_dict[op](a, m)
 
+                if a % 1 == 0:
+                    a = int(a)
                 ans = ans and op_dict[cmp](a, b)
             if ans:
                 return math.nan

@@ -1,13 +1,25 @@
-# from mathlib.core.calculator import *
+from mathlib.core.calculator import *
+
+
+
+
+
+# inv_op_dict = {
+#     '==': '!=', '!=': '==',
+#     '<': '>=', '<=': '>', '>': '<=', '>=': '<',
+#     'not': 'is', 'is': 'not',
+# }
 #
 #
 # def get_domain(exclusion: list):
 #     for ex in exclusion:
 #
 #         for e in ex:
-#             get_solution_from_exclusion(e)
-#
-#
+#             # get_solution_from_exclusion(e)
+#             if len(e) == 3:
+#                 a, cmp, b = e
+
+
 # def get_solution_from_exclusion(equation):
 #     assert len(equation) > 2
 #     a, op = equation[:2]

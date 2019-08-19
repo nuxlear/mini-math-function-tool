@@ -16,6 +16,7 @@ class MathNode(metaclass=abc.ABCMeta):
         pass
 
     def __lt__(self, other):
+        # TODO: change order into function
         if self.__class__ != other.__class__:
             return self.order < other.order
         return self._compare(other)
@@ -152,7 +153,7 @@ class TermNode(MathNode):
     def __str__(self):
         # return '({})'.format(' + '.join(map(str, self.factors)))
         if len(self.factors) == 0:
-            return ''
+            return '0'
         s = str(self.factors[0])
         for x in self.factors[1:]:
             if is_negative(x):
@@ -227,25 +228,6 @@ class FactorNode(MathNode):
         return 'Factor({})'.format(s)
 
     def __str__(self):
-        # nu, deno = '', ''
-        # if len(self.numerator) > 0:
-        #     nu = '*'.join(map(str, self.numerator))
-        # if len(self.denominator) > 0:
-        #     deno = '*'.join(map(str, self.denominator))
-        #
-        # if nu == '':
-        #     nu = str(self.coef[0])
-        # elif self.coef[0] != 1:
-        #     nu = '{}*{}'.format(self.coef[0], nu)
-        #
-        # if deno == '' and self.coef[1] != 1:
-        #     nu += ' / {}'.format(self.coef[1])
-        # elif deno != '':
-        #     if self.coef[1] != 1:
-        #         deno = '{}*{}'.format(self.coef[1], deno)
-        #     nu += ' / {}'.format(deno)
-        #
-        # return '({})'.format(nu)
         s = ''
         if self.coef[0] / self.coef[1] < 0:
             s += '-'
@@ -340,7 +322,6 @@ class FactorNode(MathNode):
             coef = self.coef[0] * other.coef[0], self.coef[1] * other.coef[1]
 
             return FactorNode(nu, deno, coef)
-            # # TODO: simplify nu & deno
 
 
 class PolyNode(MathNode):

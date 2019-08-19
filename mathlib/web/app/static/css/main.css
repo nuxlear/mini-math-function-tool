@@ -79,6 +79,7 @@ img {
 
 input.notation-input {
   font-size: large;
+  width: 20rem;
 }
 
 input.calc-button {

@@ -49,5 +49,25 @@ def compare_dim(a: MathNode, b: MathNode):
     return da - db, da - db
 
 
+def get_unique_vars(node: MathNode):
+    if isinstance(node, TermNode):
+        ans = set()
+        for x in node.factors:
+            ans.update(get_unique_vars(x))
+        return ans
+    if isinstance(node, FactorNode):
+        ans = set()
+        for x in node.numerator + node.denominator:
+            ans.update(get_unique_vars(x))
+        return ans
+    if node.__class__ in [PolyNode, TriNode]:
+        return get_unique_vars(node.body)
+    if node.__class__ in [ExpoNode, LogNode]:
+        return get_unique_vars(node.base).union(get_unique_vars(node.body))
+    if isinstance(node, VarNode):
+        return {node.name}
+    return set()
+
+
 if __name__ == '__main__':
     pass

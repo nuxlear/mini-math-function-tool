@@ -95,7 +95,7 @@ class Lexer:
         return tuple(self.tokens.keys())
 
     def stream(self, inputs: Union[tuple, list, str]):
-        if len(inputs) == 2:
+        if len(inputs) == 2 and not isinstance(inputs, str):
             assert type(inputs) in [tuple, list]
             s = TokenStream(*inputs)
         else:

@@ -41,6 +41,8 @@ class Plotter:
 
     def _get_ylim(self, values):
         values = sorted([x for x in values if x != math.inf and x is not math.nan])
+        if len(values) == 0:
+            return None
         std = np.clip(np.std(values), 0, self.max_std)
         alpha = 0.2
         r = alpha*std/self.max_std
@@ -51,6 +53,8 @@ class Plotter:
     def plot(self, node: MathNode, exclusion: list, var: str, lim: tuple, **kwargs):
         xs, ys = self._get_points(node, exclusion, var, lim)
         ylim = self._get_ylim(ys)
+        if ylim is None:
+            ylim = lim
 
         # self.ax.plot(xs, ys)
         # self.ax.set_ylim(-10, 10)
@@ -76,9 +80,14 @@ class Plotter:
 
         ax.plot(xs, ys, label=label, linewidth=2.0, zorder=3)
         ax.set_xlim(*lim)
+
         if values is not None:
             ys += values
-        ax.set_ylim(*self._get_ylim(ys))
+        ylim = self._get_ylim(ys)
+        if ylim is None:
+            ylim = lim
+
+        ax.set_ylim(*ylim)
         ax.legend()
 
         return fig, ax, ys
