@@ -41,8 +41,8 @@ class Calculator:
                 return math.nan
 
         result = self._eval_node(node, **kwargs)
-        if result == 0:
-            return 0.
+        if result % 1 == 0:
+            return int(result)
         return result
 
     def _eval_node(self, node: MathNode, **kwargs):

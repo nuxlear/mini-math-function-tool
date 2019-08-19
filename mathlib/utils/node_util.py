@@ -5,23 +5,6 @@ import functools
 from mathlib.core.node import *
 
 
-def negate(node: MathNode):
-    if node.__class__ in [int, float]:
-        return -node
-    elif isinstance(node, NumNode):
-        # node.value *= -1
-        return NumNode(node.value * -1)
-    elif isinstance(node, TermNode):
-        # node.factors = [negate(f) for f in node.factors]
-        return TermNode([negate(f) for f in node.factors])
-    elif isinstance(node, FactorNode):
-        # node.coef = -node.coef[0], node.coef[1]
-        return FactorNode(node.numerator, node.denominator,
-                          (-node.coef[0], node.coef[1]))
-    else:
-        return FactorNode([node], [], (-1, 1))
-
-
 def is_negative(node: MathNode):
     if isinstance(node, FactorNode):
         return node.coef[0] / node.coef[1] < 0

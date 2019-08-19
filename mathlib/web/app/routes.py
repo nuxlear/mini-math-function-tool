@@ -81,14 +81,19 @@ def get_notation():
                 if len(e) == 5:
                     a, op, m, cmp, b = e
                     if op == '%':
-                        a = '{{{}}} mod {{{}}}'.format(latex.generate(a),
-                                                       latex.generate(m))
+                        a = '{{{}}} \\mod {{{}}}'.format(latex.generate(a),
+                                                         latex.generate(m))
                 if cmp in cmp_dict:
                     cmp = cmp_dict[cmp]
                 if b in domain_dict:
                     b = domain_dict[b]
-                tmp.append('{{{}}} {} {}'.format(latex.generate(a), cmp, b))
+
+                if not isinstance(a, str):
+                    a = latex.generate(a)
+                tmp.append('{{{}}} {} {}'.format(a, cmp, b))
+
             ex_latex.append('$$ {} $$'.format(', '.join(tmp)))
+
         return ex_latex
 
     if request.method == 'POST':

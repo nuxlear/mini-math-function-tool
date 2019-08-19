@@ -222,15 +222,15 @@ class NodeSimplifier:
         new_deno, new_nu = [], []
         for inv in nu_invs:
             if isinstance(inv, PolyNode):
-                n = PolyNode(inv.body, negate(inv.dim))
+                n = PolyNode(inv.body, -inv.dim)
             if isinstance(inv, ExpoNode):
-                n = ExpoNode(inv.base, negate(inv.body))
+                n = ExpoNode(inv.base, -inv.body)
             new_deno.append(n)
         for inv in deno_invs:
             if isinstance(inv, PolyNode):
-                n = PolyNode(inv.body, negate(inv.dim))
+                n = PolyNode(inv.body, -inv.dim)
             if isinstance(inv, ExpoNode):
-                n = ExpoNode(inv.base, negate(inv.body))
+                n = ExpoNode(inv.base, -inv.body)
             new_nu.append(n)
 
         nu.extend(new_nu)
@@ -262,7 +262,7 @@ class NodeSimplifier:
                     k, a = compare_dim(x, y)
                     if k is None:
                         n = ExpoNode(x.base, TermNode([
-                            FactorNode([x.body]), FactorNode([negate(y.body)])]))
+                            FactorNode([x.body]), FactorNode([-y.body])]))
                         nu.append(n)
                     elif k < 0:
                         if isinstance(y, ExpoNode):

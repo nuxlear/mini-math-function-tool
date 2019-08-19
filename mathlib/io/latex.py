@@ -8,18 +8,19 @@ class LaTeXGenerator:
         s = self._generate(node)
         if s == '':
             return '0'
-        # if s[0] == '(' and s[-1] == ')':
-        #     return s[1:-1]
         return s
 
     def _generate(self, node: MathNode):
+        if node.__class__ in [int, float]:
+            return str(node)
+
         if isinstance(node, TermNode):
             if len(node.factors) == 0:
                 return ''
             s = self._generate(node.factors[0])
             for x in node.factors[1:]:
                 if is_negative(x):
-                    s += ' - {}'.format(self._generate(negate(x)))
+                    s += ' - {}'.format(self._generate(-x))
                 else:
                     s += ' + {}'.format(self._generate(x))
             return '{}'.format(s)

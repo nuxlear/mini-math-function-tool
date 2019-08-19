@@ -40,7 +40,7 @@ class NodeBuilder:
             prefix, body = node.childs
             n = self._traverse(body)
             if len(prefix.childs) > 0:
-                n = negate(n)
+                n = -n
             return n
 
         if node.type in ['expo', 'function', 'funbody']:
@@ -67,39 +67,38 @@ class NodeBuilder:
         if node.type == 'expr':
             factors = [self._traverse(cur.childs[0])]
             cur = cur.childs[1]
+
             while len(cur.childs) > 0:
                 f = self._traverse(cur.childs[1])
                 if cur.childs[0].childs[0].value == '-':
-                    f = negate(f)
+                    f = -f
                 factors.append(f)
                 cur = cur.childs[2]
-            # if len(factors) == 1:
-            #     return factors[0]
+
             return TermNode(factors)
 
         if node.type == 'term':
             nu = [self._traverse(cur.childs[0])]
             deno = []
             cur = cur.childs[1]
+
             while len(cur.childs) > 0:
                 op = cur.childs[0].childs[0].value
                 n = self._traverse(cur.childs[1])
-                # if isinstance(n, VarNode):
-                #     n = PolyNode(n, 1)
                 if op == '*':
                     nu.append(n)
                 if op == '/':
                     deno.append(n)
                 cur = cur.childs[2]
+
             if len(nu) == 1 and len(deno) == 0:
-                # if isinstance(nu[0], VarNode):
-                #     return PolyNode(nu[0], 1)
                 return nu[0]
             return FactorNode(nu, deno)
 
         if node.type == 'body':
             base = self._traverse(cur.childs[0])
             cur = cur.childs[1]
+
             while len(cur.childs) > 0:
                 n = self._traverse(cur.childs[1])
                 if isinstance(base, NumNode):
@@ -113,6 +112,7 @@ class NodeBuilder:
                     else:
                         base = ExpoNode(base, n)
                 cur = cur.childs[2]
+
             return base
 
 

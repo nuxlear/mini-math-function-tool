@@ -54,6 +54,9 @@ class MathNode(metaclass=abc.ABCMeta):
             raise ArithmeticError('multiplying `{}` and `{}` is not defined'.format(self, other))
         return self._mul(other)
 
+    def __neg__(self):
+        return FactorNode([self], [], (-1, 1))
+
     @abc.abstractmethod
     def _add(self, other) -> None:
         pass
@@ -61,25 +64,6 @@ class MathNode(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def _mul(self, other) -> None:
         pass
-
-
-# from mathlib.utils.node_util import is_negative, negate
-def negate(node: MathNode):
-    # TODO: replace this method into __ne__() method in each class
-    if node.__class__ in [int, float]:
-        return -node
-    elif isinstance(node, NumNode):
-        # node.value *= -1
-        return NumNode(node.value * -1)
-    elif isinstance(node, TermNode):
-        # node.factors = [negate(f) for f in node.factors]
-        return TermNode([negate(f) for f in node.factors])
-    elif isinstance(node, FactorNode):
-        # node.coef = -node.coef[0], node.coef[1]
-        return FactorNode(node.numerator, node.denominator,
-                          (-node.coef[0], node.coef[1]))
-    else:
-        return FactorNode([node], [], (-1, 1))
 
 
 def is_negative(node: MathNode):
@@ -120,6 +104,9 @@ class NumNode(MathNode):
     def _mul(self, other):
         return NumNode(self.value * other.value)
 
+    def __neg__(self):
+        return NumNode(self.value * -1)
+
 
 class TermNode(MathNode):
     order = 0
@@ -157,7 +144,7 @@ class TermNode(MathNode):
         s = str(self.factors[0])
         for x in self.factors[1:]:
             if is_negative(x):
-                s += ' - {}'.format(negate(x))
+                s += ' - {}'.format(-x)
             else:
                 s += ' + {}'.format(x)
         # return '({})'.format(s)
@@ -180,6 +167,9 @@ class TermNode(MathNode):
             for x in self.factors:
                 x *= other
         return FactorNode([self, other], [])
+
+    def __neg__(self):
+        return TermNode([-f for f in self.factors])
 
 
 class FactorNode(MathNode):
@@ -322,6 +312,10 @@ class FactorNode(MathNode):
             coef = self.coef[0] * other.coef[0], self.coef[1] * other.coef[1]
 
             return FactorNode(nu, deno, coef)
+
+    def __neg__(self):
+        return FactorNode(self.numerator, self.denominator,
+                          (-self.coef[0], self.coef[1]))
 
 
 class PolyNode(MathNode):
