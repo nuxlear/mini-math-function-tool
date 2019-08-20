@@ -16,9 +16,8 @@ class MathNode(metaclass=abc.ABCMeta):
         pass
 
     def __lt__(self, other):
-        # TODO: change order into function
         if self.__class__ != other.__class__:
-            return self.order < other.order
+            return self.orders() < other.orders()
         return self._compare(other)
 
     def __eq__(self, other):
@@ -28,6 +27,10 @@ class MathNode(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def _compare(self, other) -> bool:
+        pass
+
+    @abc.abstractmethod
+    def orders(self):
         pass
 
     @abc.abstractmethod
@@ -44,12 +47,6 @@ class MathNode(metaclass=abc.ABCMeta):
         return self._add(other)
 
     def __mul__(self, other):
-        # if not self.similar(other):
-        #     if isinstance(other, FactorNode):
-        #         return FactorNode([self] + other.numerator, other.denominator)
-        #     if isinstance(other, list):
-        #         return [self] + other
-        #     return FactorNode([self, other], [])
         if not self.similar_mul(other):
             raise ArithmeticError('multiplying `{}` and `{}` is not defined'.format(self, other))
         return self._mul(other)
@@ -75,7 +72,6 @@ def is_negative(node: MathNode):
 
 
 class NumNode(MathNode):
-    order = 7
     const_dict = {'pi': math.pi, 'e': math.e}
 
     def __init__(self, value):
@@ -98,6 +94,9 @@ class NumNode(MathNode):
     def _compare(self, other):
         return self.value < other.value
 
+    def orders(self):
+        return 7
+
     def _add(self, other):
         self.value += other.value
 
@@ -109,7 +108,6 @@ class NumNode(MathNode):
 
 
 class TermNode(MathNode):
-    order = 0
 
     def __init__(self, factors: list):
         super(TermNode, self).__init__()
@@ -131,14 +129,13 @@ class TermNode(MathNode):
                     return False
             return True
         if isinstance(other, PolyNode):
-            return self.similar_mul(other.body)
+            return self == other.body
         return False
 
     def __repr__(self):
         return 'Term({})'.format(', '.join(map(repr, self.factors)))
 
     def __str__(self):
-        # return '({})'.format(' + '.join(map(str, self.factors)))
         if len(self.factors) == 0:
             return '0'
         s = str(self.factors[0])
@@ -147,16 +144,16 @@ class TermNode(MathNode):
                 s += ' - {}'.format(-x)
             else:
                 s += ' + {}'.format(x)
-        # return '({})'.format(s)
         return '{}'.format(s)
 
-    # def _compare(self, other):
-    #     return len(self.factors) < len(other.factors)
     def _compare(self, other):
         return self._get_order() < other._get_order()
 
+    def orders(self):
+        return max([x.orders() for x in self.factors])
+
     def _get_order(self):
-        k = [x.order for x in self.factors]
+        k = [x.orders() for x in self.factors]
         return max(k) if len(k) > 0 else -1
 
     def _add(self, other):
@@ -173,7 +170,6 @@ class TermNode(MathNode):
 
 
 class FactorNode(MathNode):
-    order = 5
 
     def __init__(self, numerator: list, denominator: list=[], coef=(1, 1)):
         super(FactorNode, self).__init__()
@@ -192,10 +188,8 @@ class FactorNode(MathNode):
             return False
         ans = True
         for x, y in zip(nu, fnu):
-            # ans = ans and x.similar_add(y)
             ans = ans and x == y
         for x, y in zip(deno, fdeno):
-            # ans = ans and x.similar_add(y)
             ans = ans and x == y
         return ans
 
@@ -260,11 +254,15 @@ class FactorNode(MathNode):
     def _compare(self, other):
         return self._get_order() < other._get_order()
 
+    def orders(self):
+        k = [x.orders() for x in self.numerator] + [x.orders() for x in self.denominator]
+        return max(k) if len(k) > 0 else 7
+
     def _get_dim(self):
         return self.numerator, self.denominator
 
     def _get_order(self):
-        k = [x.order for x in self.numerator] + [x.order for x in self.denominator]
+        k = [x.orders() for x in self.numerator] + [x.orders() for x in self.denominator]
         return max(k) if len(k) > 0 else 7
 
     def _intify(self, coef):
@@ -319,7 +317,6 @@ class FactorNode(MathNode):
 
 
 class PolyNode(MathNode):
-    order = 1
 
     def __init__(self, body, dim=1):
         super(PolyNode, self).__init__()
@@ -333,17 +330,15 @@ class PolyNode(MathNode):
 
     def similar_mul(self, other):
         if isinstance(other, PolyNode):
-            return other.body.similar_add(self.body)
+            return other.body == self.body
         if isinstance(other, ExpoNode):
             return other.base.similar_add(self.body)
-        return other.similar_add(self.body)
+        return other == self.body
 
     def __repr__(self):
         return 'Poly({}, {})'.format(repr(self.body), self.dim)
 
     def __str__(self):
-        # if isinstance(self.body, TermNode):
-        #     return '({})^{}'.format(self.body, self.dim)
         body = str(self.body)
         if self.body.__class__ not in [VarNode, NumNode]:
             body = '({})'.format(body)
@@ -352,19 +347,13 @@ class PolyNode(MathNode):
     def _compare(self, other):
         return self.dim > other.dim
 
+    def orders(self):
+        return 1
+
     def _add(self, other):
         return FactorNode([self], [], (2, 1))
 
     def _mul(self, other):
-        # if other.__class__ in [TermNode, FactorNode]:
-        #     return other * self
-        # if isinstance(other, NumNode):
-        #     return FactorNode([self], [], (other.value, 1))
-        # if self.similar(other):
-        #     dim = self.dim + other.dim
-        #     return PolyNode(self.body, dim)
-        # if isinstance(other, MathNode):
-        #     return FactorNode([self, other], [])
         if isinstance(other, PolyNode):
             return PolyNode(self.body, self.dim + other.dim)
         if isinstance(other, ExpoNode):
@@ -379,7 +368,6 @@ class PolyNode(MathNode):
 
 
 class ExpoNode(MathNode):
-    order = 2
 
     def __init__(self, base, body):
         super(ExpoNode, self).__init__()
@@ -395,8 +383,8 @@ class ExpoNode(MathNode):
         if isinstance(other, ExpoNode):
             return other.base.similar_add(self.base)
         if isinstance(other, PolyNode):
-            return other.body.similar_add(self.base)
-        return other.similar_add(self.base)
+            return other.body == self.base
+        return other == self.base
 
     def __repr__(self):
         return 'Expo({}, {})'.format(repr(self.base), repr(self.body))
@@ -412,6 +400,9 @@ class ExpoNode(MathNode):
 
     def _compare(self, other):
         return self.base < other.base
+
+    def orders(self):
+        return 2
 
     def _add(self, other):
         return FactorNode([self], [], (2, 1))
@@ -431,25 +422,12 @@ class ExpoNode(MathNode):
                 return ExpoNode(self.base, other.body)
             return ExpoNode(self.base, TermNode([
                 FactorNode([self.body], []), FactorNode([other.body], [])]))
-        # if self.body.similar_add(other):
-        #     return ExpoNode(self.base, self.body + other)
+
         return ExpoNode(self.base, TermNode([
                 FactorNode([self.body], []), FactorNode([], [])]))
-        # if other.__class__ in [TermNode, FactorNode]:
-        #     return other * self
-        # if isinstance(other, NumNode):
-        #     return FactorNode([self], [], (other.value, 1))
-        # if isinstance(other, ExpoNode):
-        #     if self.similar(other):
-        #         self.body = TermNode([self.body, other.body])
-        #     else:
-        #         self.body
-        # if isinstance(other, MathNode):
-        #     return FactorNode([self, other], [])
 
 
 class LogNode(MathNode):
-    order = 4
 
     def __init__(self, base, body):
         if isinstance(base, NumNode) and (base.value <= 0 or base.value == 1):
@@ -478,6 +456,9 @@ class LogNode(MathNode):
     def _compare(self, other):
         return self.base < other.base
 
+    def orders(self):
+        return 4
+
     def _add(self, other):
         self.body = TermNode([FactorNode([self.body, other.body], [])])
 
@@ -491,7 +472,6 @@ class LogNode(MathNode):
 
 
 class TriNode(MathNode):
-    order = 3
 
     def __init__(self, func, body):
         super(TriNode, self).__init__()
@@ -511,29 +491,23 @@ class TriNode(MathNode):
         return '{}({})'.format(func, repr(self.body))
 
     def __str__(self):
-        # body = '({})'.format(self.body) if isinstance(self.body, TermNode) else str(self.body)
         return '{}({})'.format(self.func, self.body)
 
     def _compare(self, other):
         func_order = {'sin': 0, 'cos': 1, 'tan': 2}
         return func_order[self.func] < func_order[other.func]
 
+    def orders(self):
+        return 3
+
     def _add(self, other):
         return FactorNode([self], [], (2, 1))
 
     def _mul(self, other):
         return PolyNode(self, 2)
-    # def _mul(self, other):
-    #     if other.__class__ in [TermNode, FactorNode]:
-    #         return other * self
-    #     if isinstance(other, NumNode):
-    #         return FactorNode([self], [], (other.value, 1))
-    #     if isinstance(other, MathNode):
-    #         return FactorNode([self, other], [])
 
 
 class VarNode(MathNode):
-    order = 1.5
 
     def __init__(self, name):
         super(VarNode, self).__init__()
@@ -558,6 +532,9 @@ class VarNode(MathNode):
 
     def _compare(self, other):
         return self.name < other.name
+
+    def orders(self):
+        return 1.5
 
     def _add(self, other):
         return FactorNode([self], [], (2, 1))

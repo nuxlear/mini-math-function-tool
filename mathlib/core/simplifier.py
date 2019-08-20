@@ -309,7 +309,6 @@ class NodeSimplifier:
         if isinstance(node, ExpoNode):
             base = self._merge_similar(node.base)
             body = self._merge_similar(node.body)
-            # self.exclusion.append([[base, '<', 0], [body, 'not', int]])
             return ExpoNode(base, body)
         if isinstance(node, LogNode):
             base = self._merge_similar(node.base)

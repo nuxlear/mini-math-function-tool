@@ -62,7 +62,7 @@ def get_notation():
             '==': '=', '!=': '\\ne', '<=': '\\leq', '>=': '\\geq',
             'not': '\\notin', 'is': '\\in'
         }
-        domain_dict = {int: '\\Z', float: '\\R'}
+        domain_dict = {int: '\\mathbb{Z}', float: '\\mathbb{R}'}
 
         _exclusion = []
         for ex in exclusion:
@@ -92,7 +92,7 @@ def get_notation():
                     a = latex.generate(a)
                 tmp.append('{{{}}} {} {}'.format(a, cmp, b))
 
-            ex_latex.append('$$ {} $$'.format(', '.join(tmp)))
+            ex_latex.append('$$ {} $$'.format(', \\;'.join(tmp)))
 
         return ex_latex
 

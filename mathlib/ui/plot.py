@@ -9,7 +9,7 @@ class Plotter:
 
     def __init__(self, calculator: Calculator=None):
         self.scale = 3
-        self.threshold = 1e4
+        self.threshold = 1e3
         self.max_std = 1e6
         self.calculator = calculator
 
@@ -32,8 +32,17 @@ class Plotter:
             kwargs[var] = t
             y = self.calculator.eval(node, exclusion, **kwargs)
             if len(ys) > 0 and abs(y - ys[-1]) > self.threshold:
-                xs.append((t + xs[-1]) / 2)
-                ys.append(math.nan)
+                _scale = 1
+                _step = step / (10 ** _scale)
+                additions = [round(x, self.scale + _scale) for x in np.arange(xs[-1], t + _step, _step)]
+                for a in additions:
+                    kwargs[var] = a
+                    _y = self.calculator.eval(node, exclusion, **kwargs)
+                    if abs(_y - ys[-1]) > self.threshold:
+                        xs.append((a + xs[-1]) / 2)
+                        ys.append(math.nan)
+                    xs.append(a)
+                    ys.append(_y)
             xs.append(t)
             ys.append(y)
 
