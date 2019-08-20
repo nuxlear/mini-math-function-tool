@@ -75,9 +75,9 @@ class Plotter:
 
         if fig is None and ax is None:
             fig, ax = plt.subplots()
-            ax.spines['left'].set_position(('data', 0.))
+            ax.spines['left'].set_position('zero')
             ax.spines['right'].set_color('none')
-            ax.spines['bottom'].set_position(('data', 0.))
+            ax.spines['bottom'].set_position('zero')
             ax.spines['top'].set_color('none')
             ax.xaxis.set_ticks_position('bottom')
             ax.yaxis.set_ticks_position('left')
@@ -88,7 +88,7 @@ class Plotter:
         ax.set_xlim(*lim)
 
         ylim = self._get_ylim(ys)
-        if ylim is None:
+        if ylim is None or ylim[0] == ylim[1]:
             ylim = lim
 
         if values is not None:

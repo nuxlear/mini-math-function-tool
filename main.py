@@ -50,4 +50,3 @@ def main(lexer=None, parser=None, builder=None, simplifier=None, calculator=None
 if __name__ == "__main__":
     main(gui=True)
     # main()
-    # lexer, parser, builder, simplifier, calculator, plotter, latex
