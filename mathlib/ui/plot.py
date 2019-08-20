@@ -65,9 +65,6 @@ class Plotter:
         if ylim is None:
             ylim = lim
 
-        # self.ax.plot(xs, ys)
-        # self.ax.set_ylim(-10, 10)
-        # plt.draw()
         plt.plot(xs, ys)
         plt.ylim(*ylim)
         plt.show()

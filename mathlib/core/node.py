@@ -187,10 +187,14 @@ class FactorNode(MathNode):
         if len(nu) != len(fnu) or len(deno) != len(fdeno):
             return False
         ans = True
-        for x, y in zip(nu, fnu):
-            ans = ans and x == y
-        for x, y in zip(deno, fdeno):
-            ans = ans and x == y
+        for x in nu:
+            ans = ans and x in fnu
+        for x in fnu:
+            ans = ans and x in nu
+        for x in deno:
+            ans = ans and x in fdeno
+        for x in fdeno:
+            ans = ans and x in deno
         return ans
 
     def similar_mul(self, other):
@@ -259,7 +263,7 @@ class FactorNode(MathNode):
         return max(k) if len(k) > 0 else 7
 
     def _get_dim(self):
-        return self.numerator, self.denominator
+        return sorted(self.numerator), sorted(self.denominator)
 
     def _get_order(self):
         k = [x.orders() for x in self.numerator] + [x.orders() for x in self.denominator]

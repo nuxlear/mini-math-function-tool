@@ -39,6 +39,7 @@ class NodeSimplifier:
         _node = self.unpack(_node)
         _node = self._preprocess(self.pack(_node))
         _node = self._expand(_node)
+        _node = self._remove_zeros(_node)
         _node = self.unpack(_node)
         _node = self._merge_similar(self.pack(_node))
         _node = self._remove_zeros(_node)
@@ -346,7 +347,18 @@ class NodeSimplifier:
 
     def _remove_zeros(self, node: MathNode):
         if isinstance(node, TermNode):
-            node.factors = [x for x in node.factors if not self._is_zero(x)]
+            node.factors = [self._remove_zeros(x) for x in node.factors if not self._is_zero(x)]
+        if isinstance(node, FactorNode):
+            node.numerator = [self._remove_zeros(x) for x in node.numerator if not self._is_zero(x)]
+            node.denominator = [self._remove_zeros(x) for x in node.denominator if not self._is_zero(x)]
+        if node.__class__ in [PolyNode, TriNode]:
+            if self._is_zero(node.body):
+                node.body = self._remove_zeros(node.body)
+        if node.__class__ in [ExpoNode, LogNode]:
+            if self._is_zero(node.base):
+                node.base = self._remove_zeros(node.base)
+            if self._is_zero(node.body):
+                node.body = self._remove_zeros(node.body)
         return node
 
     def _is_zero(self, node: MathNode):
