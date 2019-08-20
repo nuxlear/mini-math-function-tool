@@ -87,11 +87,13 @@ class Plotter:
         ax.plot(xs, ys, label=label, linewidth=2.0, zorder=3)
         ax.set_xlim(*lim)
 
-        if values is not None:
-            ys += values
         ylim = self._get_ylim(ys)
         if ylim is None:
             ylim = lim
+
+        if values is not None:
+            _ylim = self._get_ylim(values)
+            ylim = max(ylim[0], _ylim[0]), min(ylim[1], _ylim[1])
 
         ax.set_ylim(*ylim)
         ax.legend()

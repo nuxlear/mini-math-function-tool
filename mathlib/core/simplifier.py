@@ -185,9 +185,10 @@ class NodeSimplifier:
             return node
 
         if isinstance(node, TriNode):
-            # if node.func == 'tan':
-            #     self.exclusion.append([[]])
-            return node
+            body = self._preprocess(node.body)
+            if node.func == 'tan':
+                self.exclusion.append([[body, '%', math.pi, '==', 0.5 * math.pi]])
+            return TriNode(node.func, body)
         return node
 
     def _relocate_fraction(self, node: FactorNode):
