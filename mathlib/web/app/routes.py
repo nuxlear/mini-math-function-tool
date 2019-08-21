@@ -125,7 +125,8 @@ def get_notation():
 
             dex_latex = print_exclusion(dex)
 
-            fname = 'fig.png'
+            notation_hash = hash(str(fx))
+            fname = 'fig_{}.png'.format(notation_hash)
             fig, ax, values = plotter.draw_plot(fx, ex, var, lim, 'f({})'.format(var), **conditions)
             fig, ax, values = plotter.draw_plot(dfx, dex, var, lim, 'f\'({})'.format(var),
                                                 fig=fig, ax=ax, values=values, **conditions)

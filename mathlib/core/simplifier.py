@@ -19,35 +19,24 @@ def is_identity(equation) -> bool:
 
     return a.__class__ in [int, float] and b.__class__ in [int, float]
 
-    # if a.__class__ in [int, float]:
-    #     if m.__class__ in [int, float]:
-    #         a = op_dict[op](a, m)
-    #     if b.__class__ in [int, float]:
-    #         # return op_dict[cmp](a, b)
-    #         # if op_dict[cmp](a, b) is True -> invalid equation
-    # return False
-
 
 class NodeSimplifier:
 
-    def __init__(self):
-        self.exclusion = []
-
     def canonicalize(self, node: MathNode):
         _node = node
-        self.exclusion = []
+        exclusion = []
         _node = self.unpack(_node)
-        _node = self._preprocess(self.pack(_node))
+        _node = self._preprocess(self.pack(_node), exclusion)
         _node = self._expand(_node)
         _node = self._remove_zeros(_node)
         _node = self.unpack(_node)
         _node = self._merge_similar(self.pack(_node))
         _node = self._remove_zeros(_node)
         _node = self.unpack(_node)
-        self._neaten_exclusion(_node)
+        exclusion = self._neaten_exclusion(_node, exclusion)
         self._sort(_node)
         node = _node
-        return node, self.exclusion
+        return node, exclusion
 
     def pack(self, node):
         if not isinstance(node, TermNode):
@@ -115,10 +104,10 @@ class NodeSimplifier:
             return TriNode(node.func, self.unpack(node.body))
         return node
 
-    def _preprocess(self, node: MathNode):
+    def _preprocess(self, node: MathNode, exclusion: list) -> MathNode:
         if isinstance(node, TermNode):
             node.factors = [self._preprocess(x if isinstance(x, FactorNode)
-                                             else FactorNode([x])) for x in node.factors]
+                                             else FactorNode([x]), exclusion) for x in node.factors]
             if len(node.factors) == 1:
                 k = node.factors[0]
                 if k.denominator == []:
@@ -129,28 +118,28 @@ class NodeSimplifier:
             return node
 
         if isinstance(node, FactorNode):
-            node = self._relocate_fraction(node)
-            node = self._abbreviate(node)
+            node = self._relocate_fraction(node, exclusion)
+            node = self._abbreviate(node, exclusion)
             return node
 
         if node.__class__ in [PolyNode, ExpoNode]:
             base, dim = None, None
             if isinstance(node, PolyNode):
-                base = self._preprocess(node.body)
-                dim = self._preprocess(node.dim)
+                base = self._preprocess(node.body, exclusion)
+                dim = self._preprocess(node.dim, exclusion)
                 if dim % 1 != 0:
-                    self.exclusion.append([[base, '<', 0]])
+                    exclusion.append([[base, '<', 0]])
             if isinstance(node, ExpoNode):
-                base = self._preprocess(node.base)
-                dim = self._preprocess(node.body)
+                base = self._preprocess(node.base, exclusion)
+                dim = self._preprocess(node.body, exclusion)
                 if isinstance(dim, LogNode):
-                    dim_base = self._preprocess(dim.base)
-                    dim_body = self._preprocess(dim.body)
-                    self.exclusion.append([[dim_base, '<=', 0]])
-                    self.exclusion.append([[dim_base, '==', 1]])
-                    self.exclusion.append([[dim_body, '<=', 0]])
+                    dim_base = self._preprocess(dim.base, exclusion)
+                    dim_body = self._preprocess(dim.body, exclusion)
+                    exclusion.append([[dim_base, '<=', 0]])
+                    exclusion.append([[dim_base, '==', 1]])
+                    exclusion.append([[dim_body, '<=', 0]])
                     if base.similar_add(dim_base):
-                        self.exclusion.append([[base, '<', 0], [dim, 'not', int]])
+                        exclusion.append([[base, '<', 0], [dim, 'not', int]])
                         return dim_body
 
             if isinstance(dim, NumNode):
@@ -163,11 +152,11 @@ class NodeSimplifier:
             return node
 
         if isinstance(node, LogNode):
-            base = self._preprocess(node.base)
-            body = self._preprocess(node.body)
-            self.exclusion.append([[base, '<=', 0]])
-            self.exclusion.append([[base, '==', 1]])
-            self.exclusion.append([[body, '<=', 0]])
+            base = self._preprocess(node.base, exclusion)
+            body = self._preprocess(node.body, exclusion)
+            exclusion.append([[base, '<=', 0]])
+            exclusion.append([[base, '==', 1]])
+            exclusion.append([[body, '<=', 0]])
             if body == base:
                 return NumNode(1)
             if isinstance(body, ExpoNode):
@@ -185,16 +174,16 @@ class NodeSimplifier:
             return node
 
         if isinstance(node, TriNode):
-            body = self._preprocess(node.body)
+            body = self._preprocess(node.body, exclusion)
             if node.func == 'tan':
-                self.exclusion.append([[body, '%', math.pi, '==', 0.5 * math.pi]])
+                exclusion.append([[body, '%', math.pi, '==', 0.5 * math.pi]])
             return TriNode(node.func, body)
         return node
 
-    def _relocate_fraction(self, node: FactorNode):
+    def _relocate_fraction(self, node: FactorNode, exclusion: list):
         node.update_coef()
-        nu = [self._preprocess(x) for x in node.numerator]
-        deno = [self._preprocess(x) for x in node.denominator]
+        nu = [self._preprocess(x, exclusion) for x in node.numerator]
+        deno = [self._preprocess(x, exclusion) for x in node.denominator]
 
         def invertible(_node):
             if _node.__class__ in [PolyNode, ExpoNode]:
@@ -248,13 +237,13 @@ class NodeSimplifier:
 
         return FactorNode(nu, deno, node.coef)
 
-    def _abbreviate(self, node: FactorNode):
+    def _abbreviate(self, node: FactorNode, exclusion: list):
         nu, deno = [], [x for x in node.denominator]
         for x in deno:
             n = x
             if isinstance(x, PolyNode):
                 n = x.body
-            self.exclusion.append([[n, '==', 0]])
+            exclusion.append([[n, '==', 0]])
 
         for x in node.numerator:
             q = [x for x in deno]
@@ -385,46 +374,48 @@ class NodeSimplifier:
         #     return node.func in ['sin', 'tan'] and self._is_zero(node.body) \
         #         or node.func == 'cos' and self._is_one(node.body)
 
-    def _neaten_exclusion(self, node: MathNode):
-        self._exclude(node)
+    def _neaten_exclusion(self, node: MathNode, exclusion: list):
+        exclusion.extend(self._exclude(node))
 
-        exclusion = []
-        for e in self.exclusion:
-            if e in exclusion:
+        _exclusion = []
+        for e in exclusion:
+            if e in _exclusion:
                 continue
             equations = []
             for _e in e:
                 if not is_identity(_e):
                     equations.append(_e)
             if len(equations) == len(e):
-                exclusion.append(equations)
+                _exclusion.append(equations)
 
-        for e in exclusion:
+        for e in _exclusion:
             for _e in e:
                 if isinstance(_e[0], PolyNode) and _e[0].dim == 1:
                     _e[0] = _e[0].body
 
-        self.exclusion = exclusion
+        return _exclusion
 
     def _exclude(self, node: MathNode):
+        exclusion = []
         if isinstance(node, TermNode):
             for x in node.factors:
-                self._exclude(x)
+                exclusion.extend(self._exclude(x))
         if isinstance(node, FactorNode):
             for x in node.numerator + node.denominator:
-                self._exclude(x)
+                exclusion.extend(self._exclude(x))
         if isinstance(node, PolyNode):
             if node.dim % 1 != 0:
-                self.exclusion.append([[node.body, '<', 0]])
+                exclusion.append([[node.body, '<', 0]])
         if isinstance(node, ExpoNode):
-            self.exclusion.append([[node.base, '<', 0], [node.body, 'not', int]])
+            exclusion.append([[node.base, '<', 0], [node.body, 'not', int]])
         if isinstance(node, LogNode):
-            self.exclusion.append([[node.base, '<=', 0]])
-            self.exclusion.append([[node.base, '==', 1]])
-            self.exclusion.append([[node.body, '<=', 0]])
+            exclusion.append([[node.base, '<=', 0]])
+            exclusion.append([[node.base, '==', 1]])
+            exclusion.append([[node.body, '<=', 0]])
         if isinstance(node, TriNode):
             if node.func == 'tan':
-                self.exclusion.append([[node.body, '%', math.pi, '==', 0.5*math.pi]])
+                exclusion.append([[node.body, '%', math.pi, '==', 0.5*math.pi]])
+        return exclusion
 
     def _sort(self, node: MathNode):
         if isinstance(node, TermNode):
