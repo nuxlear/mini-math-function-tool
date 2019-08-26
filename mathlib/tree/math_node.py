@@ -10,7 +10,11 @@ class MathNode(metaclass=abc.ABCMeta):
     # canonicalization
 
     @abc.abstractmethod
-    def is_simplifiable(self) -> bool:
+    def simplify(self):
+        pass
+
+    @abc.abstractmethod
+    def is_negative(self) -> bool:
         pass
 
     def similar_add(self, other) -> bool:
@@ -43,16 +47,30 @@ class MathNode(metaclass=abc.ABCMeta):
 
     # @abc.abstractmethod
     def __lt__(self, other):
-        pass
+        if self.get_order() == other.get_order():
+            return self.get_sub_order() < other.get_sub_order()
+        return self.get_order() < other.get_order()
 
     # @abc.abstractmethod
     def __eq__(self, other):
-        return self.__dict__ == other.__dict__
+        return self.__class__ == other.__class__ and \
+               self.__dict__ == other.__dict__
+
+    @abc.abstractmethod
+    def get_order(self) -> Union[int, float]:
+        pass
+
+    @abc.abstractmethod
+    def get_sub_order(self) -> Union[int, float]:
+        pass
 
     # print
 
-    @abc.abstractmethod
     def __repr__(self):
+        return '{}({})'.format(self.__class__.__name__[:-4], self.get_repr_content())
+
+    @abc.abstractmethod
+    def get_repr_content(self) -> str:
         pass
 
     @abc.abstractmethod
@@ -86,49 +104,9 @@ class MathNode(metaclass=abc.ABCMeta):
         pass
 
 
+# Structural Nodes
+
 class StructuralNode(MathNode, metaclass=abc.ABCMeta):
-
-    def latex(self) -> str:
-        return str(self)
-
-
-class ContentNode(MathNode, metaclass=abc.ABCMeta):
-
-    def __neg__(self):
-        return mathlib.FactorNode([self], coef=(-1, 1))
-
-    def __add__(self, other):
-        return (mathlib.TermNode() + self) + other
-
-    def __sub__(self, other):
-        return (mathlib.TermNode() + self) - other
-
-    def __mul__(self, other):
-        return (mathlib.FactorNode() * self) * other
-
-    def __truediv__(self, other):
-        return (mathlib.FactorNode() * self) / other
-
-
-class ElementaryNode(ContentNode, metaclass=abc.ABCMeta):
-
-    def __init__(self, body: MathNode):
-        self.body = body
-
-
-class AtomicNode(ContentNode, metaclass=abc.ABCMeta):
-
-    def __init__(self, value):
-        self.value = value
-
-    def is_simplifiable(self) -> bool:
-        return False
-
-    def __repr__(self):
-        return '{}({})'.format(self.__class__.__name__[:-4], self.value)
-
-    def __str__(self):
-        return '{}'.format(self.value)
 
     def latex(self) -> str:
         return str(self)
@@ -137,13 +115,40 @@ class AtomicNode(ContentNode, metaclass=abc.ABCMeta):
 class TermNode(StructuralNode):
 
     def __init__(self, factors: Union[tuple, list] = tuple()):
-        self.factors = tuple(factors)
+        self.factors = tuple(sorted(factors))
+
+    def simplify(self):
+        return self
+
+    def is_negative(self) -> bool:
+        return False
 
     def get_add_dim(self):
         return TermNode()
 
     def get_mul_dim(self):
         return self
+
+    def get_order(self) -> Union[int, float]:
+        return max([x.get_order() for x in self.factors])
+
+    def get_sub_order(self) -> Union[int, float]:
+        return max([x.get_sub_order() for x in self.factors])
+
+    def get_repr_content(self) -> str:
+        return '[{}]'.format(', '.join(map(repr, self.factors)))
+
+    def __str__(self):
+        # return ' + '.join(map(str, self.factors))
+        if len(self.factors) == 0:
+            return '0'
+        s = str(self.factors[0])
+        for x in self.factors[1:]:
+            if x.is_negative():
+                s += ' - {}'.format(-x)
+            else:
+                s += ' + {}'.format(x)
+        return '{}'.format(s)
 
     def __neg__(self):
         factors = [-x for x in self.factors]
@@ -171,18 +176,116 @@ class FactorNode(StructuralNode):
     def __init__(self, numerator: Union[tuple, list] = tuple(),
                  denominator: Union[tuple, list] = tuple(),
                  coef: tuple = (1, 1)):
-        self.numerator = tuple(numerator)
-        self.denominator = tuple(denominator)
+
+        nu, deno = [], []
+        c_nu, c_deno = [], []
+        a, b = coef
+
+        for x in numerator:
+            if isinstance(x, NumNode):
+                if x.is_number(x.value):
+                    a *= x.value
+                else:
+                    c_nu.append(x)
+            else:
+                nu.append(x)
+
+        for x in denominator:
+            if isinstance(x, NumNode):
+                if x.is_number(x.value):
+                    b *= x.value
+                else:
+                    c_deno.append(x)
+            else:
+                deno.append(x)
+
+        if not NumNode.is_int(a) or not NumNode.is_int(b):
+            a, b = a / b, 1
+        if NumNode.is_int(a):
+            a = int(a)
+        coef = a, b
+
+        self.numerator = tuple(sorted(c_nu) + sorted(nu))
+        self.denominator = tuple(sorted(c_deno) + sorted(deno))
         self.coef = tuple(coef)
 
+    def simplify(self):
+        return self
+
+    def is_negative(self) -> bool:
+        a, b = self.coef
+        return a / b < 0
+
     def get_add_dim(self):
-        return self     # need to remove numbers
+        # need to remove numbers
+        return FactorNode(self.numerator, self.denominator)
 
     def get_mul_dim(self):
         return FactorNode()
 
+    def get_order(self) -> Union[int, float]:
+        return max([x.get_order() for x in self.numerator + self.denominator])
+
+    def get_sub_order(self) -> Union[int, float]:
+        return max([x.get_sub_order() for x in self.numerator + self.denominator])
+
+    def get_repr_content(self) -> str:
+        nu = '{}'.format(self.coef[0])
+        if len(self.numerator) > 0:
+            nu += ' * {}'.format(', '.join(map(repr, self.numerator)))
+        if self.coef[1] == 1 and len(self.denominator) == 0:
+            s = nu
+        else:
+            deno = '{}'.format(self.coef[1])
+            if len(self.denominator) > 0:
+                deno += ' * {}'.format(', '.join(map(repr, self.denominator)))
+            s = '{} / {}'.format(nu, deno)
+        return s
+
+    def __str__(self):
+        s = ''
+        if self.coef[0] / self.coef[1] < 0:
+            s += '-'
+        c_nu = '{}'.format(abs(self.coef[0]))
+        c_deno = '{}'.format(abs(self.coef[1]))
+
+        def _pack_term(node):
+            if isinstance(node, TermNode):
+                return '({})'.format(node)
+            return str(node)
+
+        nu = '{}'.format('*'.join(map(_pack_term, self.numerator)))
+        deno = '{}'.format('*'.join(map(_pack_term, self.denominator)))
+
+        if deno == '':
+            if c_deno != '1':
+                s += '{} / {}'.format(c_nu, c_deno)
+            else:
+                if c_nu != '1' or nu == '':
+                    s += '{}'.format(c_nu)
+
+            if nu != '':
+                if c_nu != '1':
+                    s += '*'
+                s += '{}'.format(nu)
+        else:
+            if c_nu != '1' or nu == '':
+                _nu = c_nu
+                if nu != '':
+                    _nu += '*{}'.format(nu)
+                nu = _nu
+            if c_deno != '1':
+                deno = '{}*{}'.format(c_deno, deno)
+            if len(self.denominator) > 1 \
+                    or c_deno != '1' and len(self.denominator) > 0:
+                deno = '({})'.format(deno)
+            s += '{}/{}'.format(nu, deno)
+        return s
+
     def __neg__(self):
-        return FactorNode(self.denominator, self.numerator, self.coef[::-1])
+        # return FactorNode(self.denominator, self.numerator, self.coef[::-1])
+        return FactorNode(self.numerator, self.denominator,
+                          (-self.coef[0], self.coef[1]))
 
     def __add__(self, other):
         return (TermNode() + self) + other
@@ -207,13 +310,188 @@ class FactorNode(StructuralNode):
         return FactorNode(self.numerator, self.denominator + (other,), self.coef)
 
 
+# Content Nodes
+
+class ContentNode(MathNode, metaclass=abc.ABCMeta):
+
+    def __neg__(self):
+        return mathlib.FactorNode([self], coef=(-1, 1))
+
+    def __add__(self, other):
+        return (mathlib.TermNode() + self) + other
+
+    def __sub__(self, other):
+        return (mathlib.TermNode() + self) - other
+
+    def __mul__(self, other):
+        return (mathlib.FactorNode() * self) * other
+
+    def __truediv__(self, other):
+        return (mathlib.FactorNode() * self) / other
+
+
+# Elementary Nodes
+
+class ElementaryNode(ContentNode, metaclass=abc.ABCMeta):
+
+    def __init__(self, body: MathNode):
+        self.body = body
+
+    def is_negative(self) -> bool:
+        return False
+
+
+class ExpoNode(ElementaryNode):
+
+    def __init__(self, body, dim):
+        super(ExpoNode, self).__init__(body)
+        self.dim = dim
+
+    def simplify(self):
+        if isinstance(self.dim, NumNode):
+            # Polynomial
+            if self.dim.value == 1:
+                return self.body
+            if self.dim.value < 0:
+                return ExpoNode(self.body, -self.dim)
+
+        if isinstance(self.dim, LogNode):
+            # e^lnx
+            if self.body == self.dim.base:
+                return self.dim.body
+        return self
+
+    def get_add_dim(self):
+        return self
+
+    def get_mul_dim(self):
+        return self.body
+
+    def get_order(self) -> Union[int, float]:
+        if isinstance(self.dim, NumNode):
+            return 1
+        return 3
+
+    def get_sub_order(self) -> Union[int, float]:
+        if isinstance(self.dim, NumNode):
+            return self.body.get_order()
+        return self.dim.get_order()
+
+    def get_repr_content(self) -> str:
+        return '{}, {}'.format(repr(self.body), repr(self.dim))
+
+    def __str__(self):
+        return '{}^{}'.format(self.body, self.dim)
+
+    def latex(self) -> str:
+        pass
+
+
+class LogNode(ElementaryNode):
+
+    def __init__(self, base, body):
+        super(LogNode, self).__init__(body)
+        self.base = base
+
+    def simplify(self):
+        return True
+
+    def get_add_dim(self):
+        return LogNode(self.base, NumNode(1))
+
+    def get_mul_dim(self):
+        return self
+
+    def get_order(self) -> Union[int, float]:
+        return 5
+
+    def get_sub_order(self) -> Union[int, float]:
+        return self.body.get_order()
+
+    def get_repr_content(self) -> str:
+        return '{}, {}'.format(repr(self.base), repr(self.body))
+
+    def __str__(self):
+        return 'log({})_({})'.format(self.base, self.body)
+
+    def latex(self) -> str:
+        pass
+
+
+class TriNode(ElementaryNode):
+
+    func_dict = {'sin': mathlib.math.sin,
+                 'cos': mathlib.math.cos,
+                 'tan': mathlib.math.tan}
+
+    def __init__(self, func, body):
+        super(TriNode, self).__init__(body)
+        self.func = func
+
+    def simplify(self):
+        return True
+
+    def get_add_dim(self):
+        return self
+
+    def get_mul_dim(self):
+        return self
+
+    def get_order(self) -> Union[int, float]:
+        return 4
+
+    def get_sub_order(self) -> Union[int, float]:
+        return self.body.get_sub_order()
+
+    def __repr__(self):
+        return '{}({})'.format(self.func[0].upper() + self.func[1:], self.get_repr_content())
+
+    def get_repr_content(self) -> str:
+        return repr(self.body)
+
+    def __str__(self):
+        return '{}({})'.format(self.func, self.body)
+
+    def latex(self) -> str:
+        pass
+
+
+# Atomic Nodes
+
+class AtomicNode(ContentNode, metaclass=abc.ABCMeta):
+
+    def __init__(self, value):
+        self.value = value
+
+    def simplify(self):
+        return False
+
+    def get_repr_content(self) -> str:
+        return self.value
+
+    def __str__(self):
+        return '{}'.format(self.value)
+
+    def latex(self) -> str:
+        return str(self)
+
+
 class VarNode(AtomicNode):
+
+    def is_negative(self) -> bool:
+        return False
 
     def get_add_dim(self):
         return self
 
     def get_mul_dim(self):
         return self.get_add_dim()
+
+    def get_order(self) -> Union[int, float]:
+        return 2
+
+    def get_sub_order(self) -> Union[int, float]:
+        return ord(self.value)
 
 
 class NumNode(AtomicNode):
@@ -242,11 +520,20 @@ class NumNode(AtomicNode):
             value = int(value)
         super(NumNode, self).__init__(value)
 
+    def is_negative(self) -> bool:
+        return self.is_number(self.value) and self.value < 0
+
     def get_add_dim(self):
         return self if self.is_constant(self.value) else NumNode(1)
 
     def get_mul_dim(self):
         return self.get_add_dim()
+
+    def get_order(self) -> Union[int, float]:
+        return 6
+
+    def get_sub_order(self) -> Union[int, float]:
+        return abs(self.value)
 
     def latex(self) -> str:
         if self.value == 'pi':
@@ -254,14 +541,5 @@ class NumNode(AtomicNode):
         return str(self.value)
 
     def __neg__(self):
-        return NumNode(-self.value)
-
-
-# class MathNodeFactory:
-#
-#     @staticmethod
-#     def neg(node):
-#         pass
-# #         if isinstance(node, mathlib.TermNode):
-
+        return NumNode(-1) * self
 
