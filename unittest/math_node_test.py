@@ -108,5 +108,38 @@ class MathNodeMulTest(unittest.TestCase):
         self.assertEqual('e*k*x', str(f))
 
 
+class MathNodeSimplifyTest(unittest.TestCase):
+    def test_expo_simplify(self):
+        n = ExpoNode(NumNode('e'), LogNode(NumNode('e'), VarNode('x')))
+        m = n.simplify()
+
+        self.assertEqual(VarNode('x'), m)
+
+    def test_log_simplify(self):
+        n = LogNode(VarNode('y'),
+                    ExpoNode(VarNode('y'), TermNode([VarNode('x'), NumNode(4)])))
+        m = n.simplify()
+
+        self.assertEqual(TermNode([VarNode('x'), NumNode(4)]), m)
+
+    def test_factor_simplify_1(self):
+        n = FactorNode(coef=(3, 5))
+        m = n.simplify()
+
+        self.assertEqual(NumNode(0.6), m)
+
+    def test_factor_simplify_2(self):
+        n = FactorNode([TermNode([VarNode('x'), NumNode(-3)])])
+        m = n.simplify()
+
+        self.assertEqual(TermNode([VarNode('x'), NumNode(-3)]), m)
+
+    def test_term_simplify(self):
+        n = TermNode()
+        m = n.simplify()
+
+        self.assertEqual(NumNode(0), m)
+
+
 if __name__ == '__main__':
     unittest.main()

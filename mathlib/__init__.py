@@ -2,6 +2,7 @@ import abc
 import math
 import os
 import functools
+import operator
 from typing import Union
 
 from . import core
@@ -18,7 +19,7 @@ from .utils import *
 from .tree import *
 from .web.app import *
 
-__all__ = ['math', 'abc', 'os', 'functools', 'Union']
+__all__ = ['math', 'abc', 'os', 'functools', 'operator', 'Union']
 __all__.extend(core.__all__)
 __all__.extend(ui.__all__)
 __all__.extend(io.__all__)

@@ -1,7 +1,5 @@
 import mathlib
-from mathlib import abc, Union
-# import mathlib.tree.builder.TermNodeBuilder as TermNodeBuilder
-# import mathlib.tree.builder.FactorNodeBuilder as FactorNodeBuilder
+from mathlib import abc, Union, operator
 
 
 class MathNode(metaclass=abc.ABCMeta):
@@ -39,19 +37,17 @@ class MathNode(metaclass=abc.ABCMeta):
     def derivative(self):
         pass
 
-    # @abc.abstractmethod
-    def exclusion(self):
+    @abc.abstractmethod
+    def exclusion(self) -> list:
         pass
 
     # comparator
 
-    # @abc.abstractmethod
     def __lt__(self, other):
         if self.get_order() == other.get_order():
             return self.get_sub_order() < other.get_sub_order()
         return self.get_order() < other.get_order()
 
-    # @abc.abstractmethod
     def __eq__(self, other):
         return self.__class__ == other.__class__ and \
                self.__dict__ == other.__dict__
@@ -118,6 +114,10 @@ class TermNode(StructuralNode):
         self.factors = tuple(sorted(factors))
 
     def simplify(self):
+        if len(self.factors) == 0:
+            return NumNode(0)
+        if len(self.factors) == 1:
+            return self.factors[0]
         return self
 
     def is_negative(self) -> bool:
@@ -129,6 +129,12 @@ class TermNode(StructuralNode):
     def get_mul_dim(self):
         return self
 
+    def exclusion(self) -> list:
+        ex = []
+        for x in self.factors:
+            ex.extend(x.exclusion())
+        return ex
+
     def get_order(self) -> Union[int, float]:
         return max([x.get_order() for x in self.factors])
 
@@ -139,7 +145,6 @@ class TermNode(StructuralNode):
         return '[{}]'.format(', '.join(map(repr, self.factors)))
 
     def __str__(self):
-        # return ' + '.join(map(str, self.factors))
         if len(self.factors) == 0:
             return '0'
         s = str(self.factors[0])
@@ -177,27 +182,20 @@ class FactorNode(StructuralNode):
                  denominator: Union[tuple, list] = tuple(),
                  coef: tuple = (1, 1)):
 
-        nu, deno = [], []
-        c_nu, c_deno = [], []
-        a, b = coef
-
-        for x in numerator:
-            if isinstance(x, NumNode):
-                if x.is_number(x.value):
-                    a *= x.value
+        def _separate_nodes(_nodes, _coef=1):
+            coef_nodes, nodes = [], []
+            for x in _nodes:
+                if isinstance(x, NumNode):
+                    if NumNode.is_number(x.value):
+                        _coef *= x.value
+                    else:
+                        coef_nodes.append(x)
                 else:
-                    c_nu.append(x)
-            else:
-                nu.append(x)
+                    nodes.append(x)
+            return _coef, coef_nodes, nodes
 
-        for x in denominator:
-            if isinstance(x, NumNode):
-                if x.is_number(x.value):
-                    b *= x.value
-                else:
-                    c_deno.append(x)
-            else:
-                deno.append(x)
+        a, c_nu, nu = _separate_nodes(numerator, coef[0])
+        b, c_deno, deno = _separate_nodes(denominator, coef[1])
 
         if not NumNode.is_int(a) or not NumNode.is_int(b):
             a, b = a / b, 1
@@ -209,7 +207,16 @@ class FactorNode(StructuralNode):
         self.denominator = tuple(sorted(c_deno) + sorted(deno))
         self.coef = tuple(coef)
 
+    def get_coef(self):
+        return self.coef[0] / self.coef[1]
+
     def simplify(self):
+        if len(self.denominator) == 0:
+            # only numerator & coefficient
+            if len(self.numerator) == 0:
+                return NumNode(self.get_coef())
+            if len(self.numerator) == 1 and self.get_coef() == 1:
+                return self.numerator[0]
         return self
 
     def is_negative(self) -> bool:
@@ -223,22 +230,30 @@ class FactorNode(StructuralNode):
     def get_mul_dim(self):
         return FactorNode()
 
+    def exclusion(self) -> list:
+        ex = []
+        for x in self.denominator:
+            ex.append([(x, operator.eq, 0)])
+        for x in self.numerator + self.denominator:
+            ex.extend(x.exclusion())
+        return ex
+
     def get_order(self) -> Union[int, float]:
-        return max([x.get_order() for x in self.numerator + self.denominator])
+        return max([x.get_order() for x in self.numerator + self.denominator] + [0])
 
     def get_sub_order(self) -> Union[int, float]:
-        return max([x.get_sub_order() for x in self.numerator + self.denominator])
+        return max([x.get_sub_order() for x in self.numerator + self.denominator] + [0])
 
     def get_repr_content(self) -> str:
         nu = '{}'.format(self.coef[0])
         if len(self.numerator) > 0:
-            nu += ' * {}'.format(', '.join(map(repr, self.numerator)))
+            nu += ' * [{}]'.format(', '.join(map(repr, self.numerator)))
         if self.coef[1] == 1 and len(self.denominator) == 0:
             s = nu
         else:
             deno = '{}'.format(self.coef[1])
             if len(self.denominator) > 0:
-                deno += ' * {}'.format(', '.join(map(repr, self.denominator)))
+                deno += ' * [{}]'.format(', '.join(map(repr, self.denominator)))
             s = '{} / {}'.format(nu, deno)
         return s
 
@@ -350,6 +365,8 @@ class ExpoNode(ElementaryNode):
     def simplify(self):
         if isinstance(self.dim, NumNode):
             # Polynomial
+            if isinstance(self.body, NumNode):
+                return NumNode(self.body.value ** self.dim.value)
             if self.dim.value == 1:
                 return self.body
             if self.dim.value < 0:
@@ -366,6 +383,9 @@ class ExpoNode(ElementaryNode):
 
     def get_mul_dim(self):
         return self.body
+
+    def exclusion(self) -> list:
+        return [[(self.body, operator.lt, 0), (self.dim, NumNode.is_int, False)]]
 
     def get_order(self) -> Union[int, float]:
         if isinstance(self.dim, NumNode):
@@ -394,13 +414,22 @@ class LogNode(ElementaryNode):
         self.base = base
 
     def simplify(self):
-        return True
+        if isinstance(self.body, ExpoNode):
+            # ln(e^x)
+            if self.base == self.body.body:
+                return self.body.dim
+        return self
 
     def get_add_dim(self):
         return LogNode(self.base, NumNode(1))
 
     def get_mul_dim(self):
         return self
+
+    def exclusion(self) -> list:
+        return [[(self.base, operator.le, 0),
+                 (self.base, operator.eq, 1),
+                 (self.body, operator.le, 0)]]
 
     def get_order(self) -> Union[int, float]:
         return 5
@@ -424,18 +453,27 @@ class TriNode(ElementaryNode):
                  'cos': mathlib.math.cos,
                  'tan': mathlib.math.tan}
 
+    @staticmethod
+    def mod_pi_2(value):
+        return value % (mathlib.math.pi / 2)
+
     def __init__(self, func, body):
         super(TriNode, self).__init__(body)
         self.func = func
 
     def simplify(self):
-        return True
+        return self
 
     def get_add_dim(self):
         return self
 
     def get_mul_dim(self):
         return self
+
+    def exclusion(self) -> list:
+        if self.func == 'tan':
+            return [[(self.body, TriNode.mod_pi_2, 0)]]
+        return []
 
     def get_order(self) -> Union[int, float]:
         return 4
@@ -464,7 +502,10 @@ class AtomicNode(ContentNode, metaclass=abc.ABCMeta):
         self.value = value
 
     def simplify(self):
-        return False
+        return self
+
+    def exclusion(self) -> list:
+        return []
 
     def get_repr_content(self) -> str:
         return self.value
