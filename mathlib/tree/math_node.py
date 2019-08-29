@@ -12,15 +12,27 @@ class MathNode(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
+    def merge_similar(self):
+        pass
+
+    @abc.abstractmethod
     def is_negative(self) -> bool:
+        pass
+
+    @abc.abstractmethod
+    def is_zero(self) -> bool:
         pass
 
     def similar_add(self, other) -> bool:
         """ Return whether `self` and `other` get merged by addition. """
+        if not isinstance(other, MathNode):
+            return False
         return self.get_add_dim() == other.get_add_dim()
 
     def similar_mul(self, other) -> bool:
         """ Return whether `self` and `other` get merged by multiplication. """
+        if not isinstance(other, MathNode):
+            return False
         return self.get_mul_dim() == other.get_mul_dim()
 
     @abc.abstractmethod
@@ -104,6 +116,24 @@ class MathNode(metaclass=abc.ABCMeta):
 
 class StructuralNode(MathNode, metaclass=abc.ABCMeta):
 
+    @staticmethod
+    def merge_op(nodes: Union[list, tuple], op) -> list:
+        nodes = [x for x in nodes if x is not None]
+        merged = []
+        for x in nodes:
+            q = []
+            for s in merged:
+                if op == operator.add and s.similar_add(x) or \
+                        op == operator.mul and s.similar_mul(x):
+                    q.append(op(s, x))
+                    break
+                else:
+                    q.append(s)
+            else:
+                q.append(x)
+            merged = q
+        return merged
+
     def latex(self) -> str:
         return str(self)
 
@@ -114,14 +144,30 @@ class TermNode(StructuralNode):
         self.factors = tuple(sorted(factors))
 
     def simplify(self):
-        if len(self.factors) == 0:
+        n = TermNode()
+        for x in self.factors:
+            n += x.simplify()
+        n = n.merge_similar()
+
+        if len(n.factors) == 0:
             return NumNode(0)
-        if len(self.factors) == 1:
-            return self.factors[0]
-        return self
+        if len(n.factors) == 1:
+            return n.factors[0]
+        return n
+
+    def merge_similar(self):
+        factors = [x.merge_similar() for x in self.factors]
+        neg = [x for x in factors if x.is_negative()]
+        pos = [x for x in factors if x not in neg]
+
+        merged = StructuralNode.merge_op(factors, operator.add)
+        return TermNode(merged)
 
     def is_negative(self) -> bool:
         return False
+
+    def is_zero(self) -> bool:
+        return len(self.factors) == 0
 
     def get_add_dim(self):
         return TermNode()
@@ -162,7 +208,13 @@ class TermNode(StructuralNode):
     def __add__(self, other):
         if isinstance(other, TermNode):
             return TermNode(self.factors + other.factors)
-        return TermNode(self.factors + (other,))
+
+        factors = [x.simplify() for x in self.factors if not x.similar_add(other)]
+        if len(factors) != len(self.factors):
+            similars = [x for x in self.factors if x not in factors]
+            for x in similars:
+                other += x
+        return TermNode(factors + [other])
 
     def __sub__(self, other):
         if isinstance(other, TermNode):
@@ -177,6 +229,13 @@ class TermNode(StructuralNode):
 
 
 class FactorNode(StructuralNode):
+
+    @staticmethod
+    def add_coefs(this, other):
+        (a, b), (c, d) = this, other
+        gcd = mathlib.math.gcd(b, d)
+        nu = a * (d / gcd) + c * (b / gcd)
+        return nu, gcd
 
     def __init__(self, numerator: Union[tuple, list] = tuple(),
                  denominator: Union[tuple, list] = tuple(),
@@ -211,21 +270,41 @@ class FactorNode(StructuralNode):
         return self.coef[0] / self.coef[1]
 
     def simplify(self):
-        if len(self.denominator) == 0:
+        n = FactorNode(coef=self.coef)
+        for x in self.numerator:
+            n *= x.simplify()
+        for x in self.denominator:
+            n /= x.simplify()
+        n = n.merge_similar()
+
+        if len(n.denominator) == 0:
             # only numerator & coefficient
-            if len(self.numerator) == 0:
-                return NumNode(self.get_coef())
-            if len(self.numerator) == 1 and self.get_coef() == 1:
-                return self.numerator[0]
-        return self
+            if len(n.numerator) == 0:
+                return NumNode(n.get_coef())
+            if len(n.numerator) == 1 and n.get_coef() == 1:
+                return n.numerator[0]
+        return n
+
+    def merge_similar(self):
+        nu = [x.merge_similar() for x in self.numerator]
+        deno = [x.merge_similar() for x in self.denominator]
+
+        nu = StructuralNode.merge_op(nu, operator.mul)
+        deno = StructuralNode.merge_op(deno, operator.mul)
+        return FactorNode(nu, deno, self.coef)
 
     def is_negative(self) -> bool:
-        a, b = self.coef
-        return a / b < 0
+        return self.get_coef() < 0
+
+    def is_zero(self) -> bool:
+        z = self.get_coef() == 0
+        for x in self.numerator:
+            z &= x.is_zero()
+        return z
 
     def get_add_dim(self):
         # need to remove numbers
-        return FactorNode(self.numerator, self.denominator)
+        return FactorNode(self.numerator, self.denominator).simplify()
 
     def get_mul_dim(self):
         return FactorNode()
@@ -300,7 +379,7 @@ class FactorNode(StructuralNode):
     def __neg__(self):
         # return FactorNode(self.denominator, self.numerator, self.coef[::-1])
         return FactorNode(self.numerator, self.denominator,
-                          (-self.coef[0], self.coef[1]))
+                          (-self.coef[0], self.coef[1])).simplify()
 
     def __add__(self, other):
         return (TermNode() + self) + other
@@ -314,7 +393,22 @@ class FactorNode(StructuralNode):
             return FactorNode(self.numerator + other.numerator,
                               self.denominator + other.denominator,
                               (n * _n, d * _d))
-        return FactorNode(self.numerator + (other,), self.denominator, self.coef)
+        if isinstance(other, ExpoNode):
+            if other.dim.is_negative():
+                return self.__truediv__(ExpoNode(other.body, -other.dim))
+
+        nu = [x.simplify() for x in self.numerator if not x.similar_mul(other)]
+        deno = [x.simplify() for x in self.denominator if not x.similar_mul(other)]
+        if len(nu) != len(self.numerator):
+            similars = [x for x in self.numerator if x not in nu]
+            for x in similars:
+                other *= x
+        if len(deno) != len(self.denominator):
+            similars = [x for x in self.denominator if x not in deno]
+            for x in similars:
+                other /= x
+
+        return FactorNode(nu + [other.simplify()], deno, self.coef)
 
     def __truediv__(self, other):
         if isinstance(other, FactorNode):
@@ -322,7 +416,22 @@ class FactorNode(StructuralNode):
             return FactorNode(self.numerator + other.denominator,
                               self.denominator + other.numerator,
                               (n * _d, d * _n))
-        return FactorNode(self.numerator, self.denominator + (other,), self.coef)
+        if isinstance(other, ExpoNode):
+            if other.dim.is_negative():
+                return self.__mul__(ExpoNode(other.body, -other.dim))
+
+        nu = [x for x in self.numerator if not x.similar_mul(other)]
+        deno = [x for x in self.denominator if not x.similar_mul(other)]
+        if len(nu) != len(self.numerator):
+            similars = [x for x in self.numerator if x not in nu]
+            for x in similars:
+                other /= x
+        if len(deno) != len(self.denominator):
+            similars = [x for x in self.denominator if x not in deno]
+            for x in similars:
+                other *= x
+
+        return FactorNode(nu, deno + [other.simplify()], self.coef)
 
 
 # Content Nodes
@@ -330,19 +439,28 @@ class FactorNode(StructuralNode):
 class ContentNode(MathNode, metaclass=abc.ABCMeta):
 
     def __neg__(self):
-        return mathlib.FactorNode([self], coef=(-1, 1))
+        # return FactorNode([self], coef=(-1, 1))
+        return self * -1
 
     def __add__(self, other):
-        return (mathlib.TermNode() + self) + other
+        if other.__class__ in [int, float]:
+            return TermNode([self, NumNode(other)])
+        return (TermNode() + self) + other
 
     def __sub__(self, other):
-        return (mathlib.TermNode() + self) - other
+        if other.__class__ in [int, float]:
+            return TermNode([self, NumNode(-other)])
+        return (TermNode() + self) - other
 
     def __mul__(self, other):
-        return (mathlib.FactorNode() * self) * other
+        if other.__class__ in [int, float]:
+            return FactorNode([self], coef=(other, 1))
+        return (FactorNode() * self) * other
 
     def __truediv__(self, other):
-        return (mathlib.FactorNode() * self) / other
+        if other.__class__ in [int, float]:
+            return FactorNode([self], coef=(1, other))
+        return (FactorNode() * self) / other
 
 
 # Elementary Nodes
@@ -358,25 +476,36 @@ class ElementaryNode(ContentNode, metaclass=abc.ABCMeta):
 
 class ExpoNode(ElementaryNode):
 
-    def __init__(self, body, dim):
+    def __init__(self, body: MathNode, dim: MathNode):
         super(ExpoNode, self).__init__(body)
         self.dim = dim
 
     def simplify(self):
-        if isinstance(self.dim, NumNode):
-            # Polynomial
-            if isinstance(self.body, NumNode):
-                return NumNode(self.body.value ** self.dim.value)
-            if self.dim.value == 1:
-                return self.body
-            if self.dim.value < 0:
-                return ExpoNode(self.body, -self.dim)
+        body = self.body.simplify()
+        dim = self.dim.simplify()
 
-        if isinstance(self.dim, LogNode):
+        if isinstance(dim, NumNode) and NumNode.is_int(dim.value):
+            # Polynomial
+            if isinstance(body, NumNode):
+                return NumNode(body.value ** dim.value)
+            if dim.value == 1:
+                return self.body
+            if dim.value == 0:
+                return NumNode(1)
+            if dim.value < 0:
+                return FactorNode([], [ExpoNode(body, -dim)])
+
+        if isinstance(dim, LogNode):
             # e^lnx
-            if self.body == self.dim.base:
-                return self.dim.body
-        return self
+            if body == dim.base:
+                return dim.body
+        return ExpoNode(body, dim)
+
+    def merge_similar(self):
+        return ExpoNode(self.body.merge_similar(), self.dim.merge_similar())
+
+    def is_zero(self) -> bool:
+        return self.body.is_zero()
 
     def get_add_dim(self):
         return self
@@ -401,24 +530,55 @@ class ExpoNode(ElementaryNode):
         return '{}, {}'.format(repr(self.body), repr(self.dim))
 
     def __str__(self):
-        return '{}^{}'.format(self.body, self.dim)
+        body = str(self.body)
+        dim = str(self.dim)
+        if self.body.__class__ not in [VarNode, NumNode]:
+            body = '({})'.format(body)
+        if self.dim.__class__ not in [VarNode, NumNode]:
+            dim = '({})'.format(dim)
+        return '{}^{}'.format(body, dim)
 
     def latex(self) -> str:
         pass
+    
+    def __mul__(self, other):
+        if self.similar_mul(other):
+            if isinstance(other, ExpoNode):
+                return ExpoNode(self.body, self.dim + other.dim)
+            if isinstance(other, VarNode):
+                return ExpoNode(self.body, self.dim + NumNode(1))
+        return super(ExpoNode, self).__mul__(other)
+
+    def __truediv__(self, other):
+        if self.similar_mul(other):
+            if isinstance(other, ExpoNode):
+                return ExpoNode(self.body, self.dim - other.dim)
+            if isinstance(other, VarNode):
+                return ExpoNode(self.body, self.dim - NumNode(1))
+        return super(ExpoNode, self).__truediv__(other)
 
 
 class LogNode(ElementaryNode):
 
-    def __init__(self, base, body):
+    def __init__(self, base: MathNode, body: MathNode):
         super(LogNode, self).__init__(body)
         self.base = base
 
     def simplify(self):
-        if isinstance(self.body, ExpoNode):
+        base = self.base.simplify()
+        body = self.body.simplify()
+
+        if isinstance(body, ExpoNode):
             # ln(e^x)
-            if self.base == self.body.body:
-                return self.body.dim
-        return self
+            if base == body.body:
+                return body.dim
+        return LogNode(base, body)
+
+    def merge_similar(self):
+        return LogNode(self.base.merge_similar(), self.body.merge_similar())
+
+    def is_zero(self) -> bool:
+        return self.body == NumNode(1)
 
     def get_add_dim(self):
         return LogNode(self.base, NumNode(1))
@@ -446,6 +606,16 @@ class LogNode(ElementaryNode):
     def latex(self) -> str:
         pass
 
+    def __add__(self, other):
+        if self.similar_add(other):
+            return LogNode(self.base, self.body * other.body)
+        return super(LogNode, self).__add__(other)
+
+    def __sub__(self, other):
+        if self.similar_add(other):
+            return LogNode(self.base, self.body / other.body)
+        return super(LogNode, self).__sub__(other)
+
 
 class TriNode(ElementaryNode):
 
@@ -457,12 +627,24 @@ class TriNode(ElementaryNode):
     def mod_pi_2(value):
         return value % (mathlib.math.pi / 2)
 
-    def __init__(self, func, body):
+    def __init__(self, func: str, body: MathNode):
         super(TriNode, self).__init__(body)
         self.func = func
 
     def simplify(self):
-        return self
+        return TriNode(self.func, self.body.simplify())
+
+    def merge_similar(self):
+        return TriNode(self.func, self.body.merge_similar())
+
+    def is_zero(self) -> bool:
+        if not isinstance(self.body, NumNode):
+            return False
+        val = self.body.value
+        if self.func == 'cos':
+            val -= mathlib.math.pi
+
+        return val % mathlib.math.pi == 0
 
     def get_add_dim(self):
         return self
@@ -504,6 +686,9 @@ class AtomicNode(ContentNode, metaclass=abc.ABCMeta):
     def simplify(self):
         return self
 
+    def merge_similar(self):
+        return self
+
     def exclusion(self) -> list:
         return []
 
@@ -522,6 +707,9 @@ class VarNode(AtomicNode):
     def is_negative(self) -> bool:
         return False
 
+    def is_zero(self) -> bool:
+        return False
+
     def get_add_dim(self):
         return self
 
@@ -533,6 +721,27 @@ class VarNode(AtomicNode):
 
     def get_sub_order(self) -> Union[int, float]:
         return ord(self.value)
+
+    def __add__(self, other):
+        if self.similar_add(other):
+            # TODO: check similarity | identical
+            return self * 2
+        return super(VarNode, self).__add__(other)
+
+    def __sub__(self, other):
+        if self.similar_add(other):
+            return NumNode(0)
+        return super(VarNode, self).__sub__(other)
+
+    def __mul__(self, other):
+        if self.similar_mul(other):
+            return ExpoNode(self, NumNode(1)) * other
+        return super(VarNode, self).__mul__(other)
+
+    def __truediv__(self, other):
+        if self.similar_mul(other):
+            return ExpoNode(self, NumNode(-1)) * other
+        return super(VarNode, self).__truediv__(other)
 
 
 class NumNode(AtomicNode):
@@ -564,6 +773,9 @@ class NumNode(AtomicNode):
     def is_negative(self) -> bool:
         return self.is_number(self.value) and self.value < 0
 
+    def is_zero(self) -> bool:
+        return self.value == 0
+
     def get_add_dim(self):
         return self if self.is_constant(self.value) else NumNode(1)
 
@@ -583,4 +795,28 @@ class NumNode(AtomicNode):
 
     def __neg__(self):
         return NumNode(-1) * self
+
+    def __add__(self, other):
+        if self.similar_add(other):
+            if self == other:
+                return FactorNode([self], coef=(2, 1))
+            return NumNode(self.value + other.value)
+        return super(NumNode, self).__add__(other)
+
+    def __sub__(self, other):
+        if self.similar_add(other):
+            if self == other:
+                return NumNode(0)
+            return NumNode(self.value - other.value)
+        return super(NumNode, self).__sub__(other)
+
+    def __mul__(self, other):
+        if self.similar_mul(other):
+            return NumNode(self.value * other.value)
+        return super(NumNode, self).__mul__(other)
+
+    def __truediv__(self, other):
+        if self.similar_mul(other):
+            return NumNode(self.value / other.value)
+        return super(NumNode, self).__truediv__(other)
 

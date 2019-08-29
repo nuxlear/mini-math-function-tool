@@ -28,7 +28,7 @@ class MathNodeBasicTest(unittest.TestCase):
 
         m = ExpoNode(VarNode('y'), n)
 
-        self.assertEqual('y^x^3', str(m))
+        self.assertEqual('y^(x^3)', str(m))
 
     def test_log_init(self):
         n = LogNode(NumNode(2), TermNode([ExpoNode(VarNode('x'), NumNode(2)), NumNode(2)]))
@@ -40,20 +40,22 @@ class MathNodeBasicTest(unittest.TestCase):
         t = TermNode([n])
 
         self.assertEqual('Term([Num(-5)])', repr(t))
+        self.assertEqual('Num(-5)', repr(t.simplify()))
 
     def test_factor_init(self):
         n = VarNode('x')
         d = TermNode([VarNode('y'), NumNode(-1)])
         f = FactorNode([n], [d])
 
-        self.assertEqual('Factor(1 * Var(x) / 1 * Term([Var(y), Num(-1)]))', repr(f))
+        self.assertEqual('Factor(1 * [Var(x)] / 1 * [Term([Var(y), Num(-1)])])', repr(f))
+        self.assertEqual('x/(y - 1)', str(f))
 
 
 class MathNodeAddTest(unittest.TestCase):
     def test_num_add(self):
         n = NumNode(1) + NumNode(-3)
 
-        self.assertEqual('1 - 3', str(n))
+        self.assertEqual('-2', str(n))
 
     def test_var_add(self):
         n = VarNode('x') + VarNode('y') + NumNode(-2)
@@ -68,6 +70,7 @@ class MathNodeAddTest(unittest.TestCase):
         self.assertEqual('x^pi + y', str(t))
 
     def test_term_add_1(self):
+        """ check for merging TermNodes in __add__ """
         n = TermNode([VarNode('x'), NumNode('e')])
         m = TermNode([ExpoNode(VarNode('y'), NumNode(2))])
         t = n + m
@@ -75,6 +78,7 @@ class MathNodeAddTest(unittest.TestCase):
         self.assertEqual('y^2 + x + e', str(t))
 
     def test_term_add_2(self):
+        """ check for adding TermNode and another """
         n = LogNode(NumNode('e'), FactorNode([VarNode('x'), VarNode('y')]))
         m = TermNode([VarNode('x'), ExpoNode(VarNode('z'), NumNode(4))])
         t = n + m
@@ -82,12 +86,21 @@ class MathNodeAddTest(unittest.TestCase):
         self.assertEqual('z^4 + x + log(e)_(x*y)', str(t))
 
     def test_factor_add(self):
+        """ check for adding FactorNodes """
         n = FactorNode([VarNode('x'), NumNode(3)])
         m = FactorNode([ExpoNode(VarNode('y'), VarNode('x')),
                         TriNode('sin', VarNode('x'))])
         f = n + m
 
         self.assertEqual('3*x + y^x*sin(x)', str(f))
+
+    def test_general_add(self):
+        """ check for adding inverses """
+        n = VarNode('x')
+        m = VarNode('x') * -1
+        f = n + m
+
+        self.assertEqual('0', str(f.simplify()))
 
 
 class MathNodeMulTest(unittest.TestCase):
@@ -96,7 +109,6 @@ class MathNodeMulTest(unittest.TestCase):
         m = NumNode(2)
         f = n * m
 
-        # TODO: need to do simplify
         self.assertEqual('Num(6)', repr(f))
 
     def test_var_mul(self):
@@ -106,6 +118,22 @@ class MathNodeMulTest(unittest.TestCase):
         f = n * m * c
 
         self.assertEqual('e*k*x', str(f))
+
+    def test_factor_mul_1(self):
+        """ check for relocation of fractions """
+        n = FactorNode()
+        m = ExpoNode(VarNode('x'), NumNode(-1))
+        f = n * m
+
+        self.assertEqual('1/x', str(f))
+
+    def test_factor_mul_2(self):
+        """ check for merging FactorNodes in __mul__ """
+        n = FactorNode([VarNode('x'), ExpoNode(NumNode('e'), VarNode('x'))])
+        m = FactorNode([], [TermNode([VarNode('x'), NumNode(1)])])
+        f = n * m
+
+        self.assertEqual('x*e^x/(x + 1)', str(f))
 
 
 class MathNodeSimplifyTest(unittest.TestCase):
@@ -123,22 +151,62 @@ class MathNodeSimplifyTest(unittest.TestCase):
         self.assertEqual(TermNode([VarNode('x'), NumNode(4)]), m)
 
     def test_factor_simplify_1(self):
+        """ check for FactorNode with coefficient only """
         n = FactorNode(coef=(3, 5))
         m = n.simplify()
 
         self.assertEqual(NumNode(0.6), m)
 
     def test_factor_simplify_2(self):
+        """ check for identity of simplifying FactorNode """
         n = FactorNode([TermNode([VarNode('x'), NumNode(-3)])])
         m = n.simplify()
 
         self.assertEqual(TermNode([VarNode('x'), NumNode(-3)]), m)
 
-    def test_term_simplify(self):
+    def test_factor_simplify_3(self):
+        """ check for merging FactorNodes and abbreviation """
+        n = FactorNode([VarNode('x'), NumNode(7), ExpoNode(VarNode('y'), NumNode(3))],
+                       [VarNode('x')])
+        m = FactorNode([ExpoNode(NumNode('e'), VarNode('x'))], [n])
+
+        self.assertEqual('e^x/(7*y^3)', str(m.simplify()))
+
+    def test_factor_simplify_4(self):
+        """ check for merging inside of numerators """
+        n = FactorNode([VarNode('x'), VarNode('x'),
+                        ExpoNode(VarNode('x'), NumNode(4)),
+                        ExpoNode(VarNode('x'), NumNode(-2))])
+
+        self.assertEqual('x^4', str(n.simplify().merge_similar()))
+
+    def test_factor_simplify_5(self):
+        """ check for relocation and simplification """
+        n = FactorNode([], [ExpoNode(VarNode('x'),
+                                     FactorNode([
+                                         TermNode([VarNode('y'), VarNode('z'), NumNode(2)]),
+                                         NumNode(-1)])
+                                     )])
+
+        self.assertEqual('x^(y + z + 2)', str(n.simplify()))
+
+    def test_term_simplify_1(self):
         n = TermNode()
         m = n.simplify()
 
         self.assertEqual(NumNode(0), m)
+
+    def test_term_simplify_2(self):
+        n = TermNode([VarNode('x'), ExpoNode(VarNode('x'), NumNode(2))])
+        m = TermNode([LogNode(NumNode('e'), TermNode([VarNode('x'), NumNode(-1)]))])
+        t = TermNode([n, m]).simplify()
+
+        self.assertEqual('x^2 + x + log(e)_(x - 1)', str(t))
+
+    def test_term_simplify_3(self):
+        n = TermNode([VarNode('x'), VarNode('x')])
+
+        self.assertEqual('2*x', str(n.simplify()))
 
 
 if __name__ == '__main__':
