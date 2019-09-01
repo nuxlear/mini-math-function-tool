@@ -100,6 +100,7 @@ class MathNodeAddTest(unittest.TestCase):
         m = VarNode('x') * -1
         f = n + m
 
+        f = f.merge_similar()
         self.assertEqual('0', str(f.simplify()))
 
 
@@ -170,7 +171,7 @@ class MathNodeSimplifyTest(unittest.TestCase):
                        [VarNode('x')])
         m = FactorNode([ExpoNode(NumNode('e'), VarNode('x'))], [n])
 
-        self.assertEqual('e^x/(7*y^3)', str(m.simplify()))
+        self.assertEqual('e^x/(7*y^3)', str(m.simplify().merge_similar().simplify()))
 
     def test_factor_simplify_4(self):
         """ check for merging inside of numerators """
@@ -178,7 +179,7 @@ class MathNodeSimplifyTest(unittest.TestCase):
                         ExpoNode(VarNode('x'), NumNode(4)),
                         ExpoNode(VarNode('x'), NumNode(-2))])
 
-        self.assertEqual('x^4', str(n.simplify().merge_similar()))
+        self.assertEqual('x^4', str(n.simplify().merge_similar().simplify()))
 
     def test_factor_simplify_5(self):
         """ check for relocation and simplification """
@@ -188,7 +189,7 @@ class MathNodeSimplifyTest(unittest.TestCase):
                                          NumNode(-1)])
                                      )])
 
-        self.assertEqual('x^(y + z + 2)', str(n.simplify()))
+        self.assertEqual('x^(y + z + 2)', str(n.simplify().merge_similar()))
 
     def test_term_simplify_1(self):
         n = TermNode()
@@ -206,7 +207,7 @@ class MathNodeSimplifyTest(unittest.TestCase):
     def test_term_simplify_3(self):
         n = TermNode([VarNode('x'), VarNode('x')])
 
-        self.assertEqual('2*x', str(n.simplify()))
+        self.assertEqual('2*x', str(n.simplify().merge_similar()))
 
 
 if __name__ == '__main__':
