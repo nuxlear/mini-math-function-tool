@@ -1,6 +1,7 @@
 import unittest
 
 from mathlib.tree.math_node import *
+from mathlib import math
 
 
 class MathNodeBasicTest(unittest.TestCase):
@@ -208,6 +209,36 @@ class MathNodeSimplifyTest(unittest.TestCase):
         n = TermNode([VarNode('x'), VarNode('x')])
 
         self.assertEqual('2*x', str(n.simplify().merge_similar()))
+
+
+class MathNodeDerivativeTest(unittest.TestCase):
+    def test_derivative_1(self):
+        n = LogNode(NumNode(2), TermNode([VarNode('x'), NumNode(-1)]))
+        m = n.derivative('x').simplify().merge_similar().simplify()
+
+        self.assertEqual('1/(log(e)_(2)*(x - 1))', str(m))
+
+    def test_derivative_2(self):
+        n = TriNode('sin', ExpoNode(NumNode('e'), VarNode('y')))
+        m = n.derivative('y').simplify().merge_similar().simplify()
+
+        self.assertEqual('e^y*cos(e^y)', str(m))
+
+
+class MathNodeEvalTest(unittest.TestCase):
+    def test_eval_1(self):
+        n = TermNode([ExpoNode(VarNode('x'), NumNode(3)),
+                      LogNode(NumNode('e'), TermNode([VarNode('y'), NumNode(2)]))])
+        v = n.eval(x=3, y=math.e)
+
+        self.assertEqual(28.55144471393205, v)
+
+    def test_eval_2(self):
+        """ check NaN when dividing by zero """
+        n = FactorNode([], [VarNode('x')])
+        v = n.eval(x=0)
+
+        self.assertEqual('nan', str(v))
 
 
 if __name__ == '__main__':

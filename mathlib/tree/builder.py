@@ -41,7 +41,7 @@ class NodeBuilder:
             n = self._traverse(body)
             if len(prefix.childs) > 0:
                 n = -n
-            return n.simplify()
+            return n#.simplify()
 
         if node.type in ['expo', 'function', 'funbody']:
             if len(node.childs) > 1:
@@ -77,7 +77,7 @@ class NodeBuilder:
                 factors.append(f)
                 cur = cur.childs[2]
 
-            return TermNode(factors).simplify()
+            return TermNode(factors)#.simplify()
 
         if node.type == 'term':
             nu = [self._traverse(cur.childs[0])]
@@ -93,7 +93,7 @@ class NodeBuilder:
                     deno.append(n)
                 cur = cur.childs[2]
 
-            return FactorNode(nu, deno).simplify()
+            return FactorNode(nu, deno)#.simplify()
 
         if node.type == 'body':
             base = self._traverse(cur.childs[0])
@@ -101,10 +101,10 @@ class NodeBuilder:
 
             while len(cur.childs) > 0:
                 n = self._traverse(cur.childs[1])
-                base = ExpoNode(base, n).simplify()
+                base = ExpoNode(base, n)#.simplify()
                 cur = cur.childs[2]
 
-            return base.simplify()
+            return base#.simplify()
 
 
 if __name__ == '__main__':

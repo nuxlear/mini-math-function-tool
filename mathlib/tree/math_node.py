@@ -45,8 +45,12 @@ class MathNode(metaclass=abc.ABCMeta):
 
     # mathmatical
 
-    # @abc.abstractmethod
-    def derivative(self):
+    @abc.abstractmethod
+    def eval(self, **kwargs):
+        pass
+
+    @abc.abstractmethod
+    def derivative(self, var):
         pass
 
     @abc.abstractmethod
@@ -145,17 +149,7 @@ class TermNode(StructuralNode):
         self.factors = tuple(sorted(factors))
 
     def simplify(self):
-        # n = TermNode()
-        # for x in self.factors:
-        #     n += x.simplify()
-        # n = n.merge_similar()
-        #
-        # if len(n.factors) == 0:
-        #     return NumNode(0)
-        # if len(n.factors) == 1:
-        #     return n.factors[0]
-        # return n
-        factors = [x for x in self.factors if not isinstance(x, TermNode)]
+        factors = [x.simplify() for x in self.factors if not isinstance(x, TermNode)]
         n = TermNode(factors)
         for x in self.factors:
             if isinstance(x, TermNode):
@@ -184,6 +178,16 @@ class TermNode(StructuralNode):
 
     def get_mul_dim(self):
         return self
+
+    def eval(self, **kwargs):
+        result = 0
+        for x in self.factors:
+            result += x.eval(**kwargs)
+        return result
+
+    def derivative(self, var):
+        factors = [x.derivative(var) for x in self.factors]
+        return TermNode(factors)
 
     def exclusion(self) -> list:
         ex = []
@@ -316,8 +320,8 @@ class FactorNode(StructuralNode):
         if self.get_coef() == 0:
             return NumNode(0)
 
-        n = FactorNode([x for x in self.numerator if not isinstance(x, FactorNode)],
-                       [x for x in self.denominator if not isinstance(x, FactorNode)],
+        n = FactorNode([x.simplify() for x in self.numerator if not isinstance(x, FactorNode)],
+                       [x.simplify() for x in self.denominator if not isinstance(x, FactorNode)],
                        self.coef)
         for x in self.numerator:
             if isinstance(x, FactorNode):
@@ -325,14 +329,6 @@ class FactorNode(StructuralNode):
         for x in self.denominator:
             if isinstance(x, FactorNode):
                 n /= x
-
-        # if len(n.denominator) == 0:
-        #     # only numerator & coefficient
-        #     if len(n.numerator) == 0:
-        #         return NumNode(n.get_coef())
-        #     if len(n.numerator) == 1 and n.get_coef() == 1:
-        #         return n.numerator[0]
-        # return n
 
         nu, deno = n.numerator, n.denominator
 
@@ -344,12 +340,12 @@ class FactorNode(StructuralNode):
 
         n = FactorNode(nu, deno, n.coef)
 
-        if len(deno) == 0:
+        if len(n.denominator) == 0:
             # only numerator & coefficient
-            if len(nu) == 0:
+            if len(n.numerator) == 0:
                 return NumNode(n.get_coef())
-            if len(nu) == 1 and n.get_coef() == 1:
-                return nu[0]
+            if len(n.numerator) == 1 and n.get_coef() == 1:
+                return n.numerator[0]
         return n
 
     def merge_similar(self):
@@ -378,6 +374,35 @@ class FactorNode(StructuralNode):
 
     def get_mul_dim(self):
         return FactorNode()
+
+    def eval(self, **kwargs):
+        nu, deno = self.coef
+        for x in self.numerator:
+            nu *= x.eval(**kwargs)
+        for x in self.denominator:
+            deno *= x.eval(**kwargs)
+        if deno == 0:
+            return mathlib.math.nan
+        return nu / deno
+
+    def derivative(self, var):
+        if len(self.numerator) == 0 and len(self.denominator) == 1:
+            d = self.denominator[0]
+            return FactorNode([d.derivative(var), NumNode(-1)], [ExpoNode(d, NumNode(2))], self.coef)
+
+        c_nu = [x for x in self.numerator if var not in str(x)]
+        c_deno = [x for x in self.denominator if var not in str(x)]
+        c = FactorNode(c_nu, c_deno, self.coef)
+
+        nu = [x for x in self.numerator if x not in c_nu]
+        deno = [FactorNode([], [x]) for x in self.denominator if x not in c_deno]
+
+        targets = nu + deno
+        factors = []
+        for t in targets:
+            others = [t.derivative(var)] + [x for x in targets if x != t]
+            factors.append(FactorNode([others]) * c)
+        return TermNode(factors)
 
     def exclusion(self) -> list:
         ex = []
@@ -448,7 +473,6 @@ class FactorNode(StructuralNode):
         return s
 
     def __neg__(self):
-        # return FactorNode(self.denominator, self.numerator, self.coef[::-1])
         return FactorNode(self.numerator, self.denominator,
                           (-self.coef[0], self.coef[1])).simplify()
 
@@ -580,6 +604,10 @@ class ElementaryNode(ContentNode, metaclass=abc.ABCMeta):
 
 class ExpoNode(ElementaryNode):
 
+    @staticmethod
+    def check_int(x, y):
+        return NumNode.is_int(x) == y
+
     def __init__(self, body: MathNode, dim: MathNode):
         super(ExpoNode, self).__init__(body)
         self.dim = dim
@@ -617,9 +645,22 @@ class ExpoNode(ElementaryNode):
     def get_mul_dim(self):
         return self.body
 
+    def eval(self, **kwargs):
+        return pow(self.body.eval(**kwargs), self.dim.eval(**kwargs))
+
+    def derivative(self, var):
+        if var not in str(self.body):
+            # form of a^f(x)
+            return FactorNode([self, LogNode(NumNode('e'), self.body), self.dim.derivative(var)])
+        if var not in str(self.dim):
+            # form of f(x)^a
+            return FactorNode([self.dim, ExpoNode(self.body, self.dim - 1)])
+        return ExpoNode(NumNode('e'),
+                        FactorNode([LogNode(NumNode('e'), self.body), self.dim])).derivative(var)
+
     def exclusion(self) -> list:
         return [[(self.body, operator.lt, 0),
-                 (self.dim, lambda x, y: NumNode.is_int(x) == y, False)]]
+                 (self.dim, ExpoNode.check_int, False)]]
 
     def get_order(self) -> Union[int, float]:
         if isinstance(self.dim, NumNode):
@@ -673,6 +714,10 @@ class LogNode(ElementaryNode):
         base = self.base.simplify()
         body = self.body.simplify()
 
+        if body == base:
+            return NumNode(1)
+        if body == NumNode(1):
+            return NumNode(0)
         if isinstance(body, ExpoNode):
             # ln(e^x)
             if base == body.body:
@@ -691,10 +736,21 @@ class LogNode(ElementaryNode):
     def get_mul_dim(self):
         return self
 
+    def eval(self, **kwargs):
+        return mathlib.math.log(self.body.eval(**kwargs), self.base.eval(**kwargs))
+
+    def derivative(self, var):
+        if var not in str(self.base):
+            # form of log(a)_f(x)
+            return FactorNode([self.body.derivative(var)],
+                              [LogNode(NumNode('e'), self.base), self.body])
+        return FactorNode([LogNode(NumNode('e'), self.body)],
+                          [LogNode(NumNode('e'), self.base)]).derivative(var)
+
     def exclusion(self) -> list:
-        return [[(self.base, operator.le, 0),
-                 (self.base, operator.eq, 1),
-                 (self.body, operator.le, 0)]]
+        return [[(self.base, operator.le, 0)],
+                [(self.base, operator.eq, 1)],
+                [(self.body, operator.le, 0)]]
 
     def get_order(self) -> Union[int, float]:
         return 5
@@ -732,6 +788,10 @@ class TriNode(ElementaryNode):
     def mod_pi_2(value):
         return value % (mathlib.math.pi / 2)
 
+    @staticmethod
+    def check_mod(x, y):
+        return TriNode.mod_pi_2(x) == y
+
     def __init__(self, func: str, body: MathNode):
         super(TriNode, self).__init__(body)
         self.func = func
@@ -757,9 +817,22 @@ class TriNode(ElementaryNode):
     def get_mul_dim(self):
         return self
 
+    def eval(self, **kwargs):
+        return self.func_dict[self.func](self.body.eval(**kwargs))
+
+    def derivative(self, var):
+        if self.func == 'sin':
+            return FactorNode([TriNode('cos', self.body), self.body.derivative(var)])
+        if self.func == 'cos':
+            return FactorNode([TriNode('sin', self.body), self.body.derivative(var)],
+                              coef=(-1, 1))
+        if self.func == 'tan':
+            return FactorNode([self.body.derivative(var)],
+                              [ExpoNode(TriNode('cos', self.body), NumNode(2))])
+
     def exclusion(self) -> list:
         if self.func == 'tan':
-            return [[(self.body, lambda x, y: TriNode.mod_pi_2(x) == y, 0)]]
+            return [[(self.body, TriNode.check_mod, 0)]]
         return []
 
     def get_order(self) -> Union[int, float]:
@@ -794,6 +867,11 @@ class AtomicNode(ContentNode, metaclass=abc.ABCMeta):
     def merge_similar(self):
         return self
 
+    def derivative(self, var):
+        if var not in ['e', 'pi'] and var == self.value:
+            return NumNode(1)
+        return NumNode(0)
+
     def exclusion(self) -> list:
         return []
 
@@ -826,6 +904,11 @@ class VarNode(AtomicNode):
 
     def get_sub_order(self) -> Union[int, float]:
         return ord(self.value)
+
+    def eval(self, **kwargs):
+        if self.value in kwargs:
+            return kwargs[self.value]
+        raise ArithmeticError('undefined variable: {}'.format(self.value))
 
     # def __add__(self, other):
     #     if self.similar_add(other):
@@ -878,7 +961,7 @@ class NumNode(AtomicNode):
             value = int(value)
         super(NumNode, self).__init__(value)
 
-    def eval(self):
+    def eval(self, **kwargs):
         val_dict = {'e': mathlib.math.e, 'pi': mathlib.math.pi}
         if self.value in val_dict.keys():
             return val_dict[self.value]
