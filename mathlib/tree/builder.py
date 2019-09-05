@@ -25,12 +25,8 @@ class ParseNode:
 
 class NodeBuilder:
 
-    def __init__(self):
-        self.math_tree = None
-
     def build(self, parse_tree: ParseNode):
-        self.math_tree = self._traverse(parse_tree)
-        return self.math_tree
+        return self._traverse(parse_tree)
 
     def _traverse(self, node: ParseNode) -> MathNode:
         if node.type in ['expr', 'term', 'body']:

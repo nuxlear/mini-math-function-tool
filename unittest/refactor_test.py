@@ -132,12 +132,22 @@ class MathNodeFinalTest(unittest.TestCase):
         self.assertEqual('x*sin(x)', str(n))
         self.assertEqual([[(VarNode('x'), operator.eq, 0)]], e)
 
+        d = n.derivative('x')
+        dn, de = self.calculator.canonicalize(d)
+
+        self.assertEqual('sin(x) + x*cos(x)', str(dn))
+
     def test_02(self):
         s = '3*x^2*log(e)_(e^x) - x^3 + x^2 - 7*x + 5'
         n, e = self.build_tree_exclusion(s)
 
         self.assertEqual('2*x^3 + x^2 - 7*x + 5', str(n))
         self.assertEqual([[(ExpoNode(NumNode('e'), VarNode('x')), operator.le, 0)]], e)
+
+        d = n.derivative('x')
+        dn, de = self.calculator.canonicalize(d)
+
+        self.assertEqual('6*x^2 + 2*x - 7', str(dn))
 
     def test_03(self):
         s = 'log(x)_(x^2)'
@@ -148,6 +158,11 @@ class MathNodeFinalTest(unittest.TestCase):
                           [(VarNode('x'), operator.eq, 1)],
                           [(ExpoNode(VarNode('x'), NumNode(2)), operator.le, 0)]], e)
 
+        d = n.derivative('x')
+        dn, de = self.calculator.canonicalize(d)
+
+        self.assertEqual('0', str(dn))
+
     def test_04(self):
         s = 'x^(-3.5) + 1/x^3.5'
         n, e = self.build_tree_exclusion(s)
@@ -156,12 +171,22 @@ class MathNodeFinalTest(unittest.TestCase):
         self.assertEqual([[(VarNode('x'), operator.eq, 0)],
                           [(VarNode('x'), operator.lt, 0)]], e)
 
+        d = n.derivative('x')
+        dn, de = self.calculator.canonicalize(d)
+
+        self.assertEqual('-7/x^4.5', str(dn))
+
     def test_05(self):
         s = 'sin(cos(x/pi))'
         n, e = self.build_tree_exclusion(s)
 
         self.assertEqual('sin(cos(x/pi))', str(n))
         self.assertEqual([], e)
+
+        d = n.derivative('x')
+        dn, de = self.calculator.canonicalize(d)
+
+        self.assertEqual('-cos(cos(x/pi))*sin(x/pi)/pi', str(dn))
 
     def test_06(self):
         s = 'x*tany + y^(2*z^2)'
@@ -173,14 +198,32 @@ class MathNodeFinalTest(unittest.TestCase):
                             ExpoNode.check_int, False)],
                           [(VarNode('y'), TriNode.check_mod, 0)]], e)
 
+        d = n.derivative('x')
+        dn, de = self.calculator.canonicalize(d)
+
+        self.assertEqual('tan(y)', str(dn))
+
     def test_07(self):
         s = '(x^y * x^z * x^(-2))^0.5'
         n, e = self.build_tree_exclusion(s)
 
-        self.assertEqual('(x^(y + z - 2))^0.5', str(n))
+        self.assertEqual('x^(0.5*(y + z - 2))', str(n))
         self.assertEqual([[(ExpoNode(VarNode('x'),
                                      TermNode([VarNode('y'), VarNode('z'), NumNode(-2)])),
-                            operator.lt, 0)]], e)
+                            operator.lt, 0)],
+                          [(VarNode('x'), operator.lt, 0),
+                           (FactorNode([TermNode([VarNode('y'), VarNode('z'), NumNode(-2)])],
+                                       coef=(0.5, 1)),
+                            ExpoNode.check_int, False)]], e)
+        # self.assertEqual('(x^(y + z - 2))^0.5', str(n))
+        # self.assertEqual([[(ExpoNode(VarNode('x'),
+        #                              TermNode([VarNode('y'), VarNode('z'), NumNode(-2)])),
+        #                     operator.lt, 0)]], e)
+
+        d = n.derivative('x')
+        dn, de = self.calculator.canonicalize(d)
+
+        self.assertEqual('0.5*x^(-1 + 0.5*(y + z - 2))*(y + z - 2)', str(dn))
 
     def test_08(self):
         s = 'x/(x-1)*x/(x-2)'
@@ -189,6 +232,11 @@ class MathNodeFinalTest(unittest.TestCase):
         self.assertEqual('x^2/((x - 1)*(x - 2))', str(n))
         self.assertEqual([[(TermNode([VarNode('x'), NumNode(-1)]), operator.eq, 0)],
                           [(TermNode([VarNode('x'), NumNode(-2)]), operator.eq, 0)]], e)
+
+        d = n.derivative('x')
+        dn, de = self.calculator.canonicalize(d)
+
+        self.assertEqual('2*x/((x - 1)*(x - 2)) - x^2/((x - 1)^2*(x - 2)) - x^2/((x - 2)^2*(x - 1))', str(dn))
 
     def test_09(self):
         s = '(x-y)^2 + sinx*sinx - logy_x'
@@ -199,12 +247,22 @@ class MathNodeFinalTest(unittest.TestCase):
                           [(VarNode('y'), operator.eq, 1)],
                           [(VarNode('x'), operator.le, 0)]], e)
 
+        d = n.derivative('x')
+        dn, de = self.calculator.canonicalize(d)
+
+        self.assertEqual('2*(x - y) + 2*sin(x)*cos(x) - 1/(x*log(e)_(y))', str(dn))
+
     def test_10(self):
         s = 'e^loge_x/((x-1)/(x+1))'
         n, e = self.build_tree_exclusion(s)
 
         self.assertEqual('x*(x + 1)/(x - 1)', str(n))
-        self.assertEqual([], e)
+        # self.assertEqual([[(TermNode([VarNode('x'), NumNode(1)]), operator.eq, 0)]], e)
+
+        d = n.derivative('x')
+        dn, de = self.calculator.canonicalize(d)
+
+        self.assertEqual('(x + 1)/(x - 1) + x/(x - 1) - x*(x + 1)/(x - 1)^2', str(dn))
 
 
 if __name__ == '__main__':

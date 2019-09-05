@@ -196,10 +196,10 @@ class TermNode(StructuralNode):
         return ex
 
     def get_order(self) -> Union[int, float]:
-        return max([x.get_order() for x in self.factors])
+        return max([x.get_order() for x in self.factors] + [0])
 
     def get_sub_order(self) -> Union[int, float]:
-        return max([x.get_sub_order() for x in self.factors])
+        return max([x.get_sub_order() for x in self.factors] + [0])
 
     def get_repr_content(self) -> str:
         return '[{}]'.format(', '.join(map(repr, self.factors)))
@@ -401,7 +401,7 @@ class FactorNode(StructuralNode):
         factors = []
         for t in targets:
             others = [t.derivative(var)] + [x for x in targets if x != t]
-            factors.append(FactorNode([others]) * c)
+            factors.append(FactorNode(others) * c)
         return TermNode(factors)
 
     def exclusion(self) -> list:
@@ -616,6 +616,9 @@ class ExpoNode(ElementaryNode):
         body = self.body.simplify()
         dim = self.dim.simplify()
 
+        if isinstance(body, ExpoNode):
+            return ExpoNode(body.body, body.dim * dim)
+
         if isinstance(dim, NumNode) and NumNode.is_int(dim.value):
             # Polynomial
             if isinstance(body, NumNode):
@@ -631,6 +634,7 @@ class ExpoNode(ElementaryNode):
             # e^lnx
             if body == dim.base:
                 return dim.body
+
         return ExpoNode(body, dim)
 
     def merge_similar(self):
@@ -649,12 +653,14 @@ class ExpoNode(ElementaryNode):
         return pow(self.body.eval(**kwargs), self.dim.eval(**kwargs))
 
     def derivative(self, var):
+        if var not in str(self):
+            return NumNode(0)
         if var not in str(self.body):
             # form of a^f(x)
             return FactorNode([self, LogNode(NumNode('e'), self.body), self.dim.derivative(var)])
         if var not in str(self.dim):
             # form of f(x)^a
-            return FactorNode([self.dim, ExpoNode(self.body, self.dim - 1)])
+            return FactorNode([self.dim, ExpoNode(self.body, self.dim - NumNode(1)), self.body.derivative(var)])
         return ExpoNode(NumNode('e'),
                         FactorNode([LogNode(NumNode('e'), self.body), self.dim])).derivative(var)
 
@@ -983,7 +989,7 @@ class NumNode(AtomicNode):
         return 6
 
     def get_sub_order(self) -> Union[int, float]:
-        return abs(self.value)
+        return abs(self.eval())
 
     def latex(self) -> str:
         if self.value == 'pi':
